@@ -22,8 +22,27 @@ impl Default for MainApp {
 impl MainApp {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // This is also where you can customize the look and feel of egui using
-        // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
+        let mut fonts = egui::FontDefinitions::default();
+        #[expect(clippy::large_include_file)]
+        fonts.font_data.insert(
+            "noto_sans_jp_regular".to_owned(),
+            std::sync::Arc::new(egui::FontData::from_static(include_bytes!(
+                "../fonts/NotoSansJP-Regular.ttf"
+            ))),
+        );
+        fonts.font_data.insert(
+            "roboto_regular".to_owned(),
+            std::sync::Arc::new(egui::FontData::from_static(include_bytes!(
+                "../fonts/Roboto-Regular.ttf"
+            ))),
+        );
+        let font_families = fonts
+            .families
+            .get_mut(&egui::FontFamily::Proportional)
+            .expect("Failed to init fonts.");
+        font_families.insert(0, "roboto_regular".to_owned());
+        font_families.insert(1, "noto_sans_jp_regular".to_owned());
+        cc.egui_ctx.set_fonts(fonts);
 
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
