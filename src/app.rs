@@ -4,6 +4,7 @@ use std::path::PathBuf;
 #[serde(default)]
 pub struct MainApp {
     work_folder: Option<PathBuf>,
+    audio_files: Vec<PathBuf>,
 }
 
 impl MainApp {
@@ -44,14 +45,35 @@ impl MainApp {
     fn open_folder<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle>(
         &mut self,
         parent: Option<&W>,
-    ) {
+    ) -> std::io::Result<()> {
         let mut dialog = rfd::FileDialog::new();
         if let Some(p) = parent {
             dialog = dialog.set_parent(p);
         }
         if let Some(pathbuf) = dialog.pick_folder() {
+            self.read_folder(&pathbuf)?;
             self.work_folder = Some(pathbuf);
         }
+
+        Ok(())
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn read_folder<P: AsRef<std::path::Path>>(&mut self, path: P) -> std::io::Result<()> {
+        self.audio_files.clear();
+
+        for entry in (std::fs::read_dir(path)?).flatten() {
+            let entry_path = entry.path();
+            if entry_path.is_file()
+                && entry_path
+                    .extension()
+                    .is_some_and(|ext| ext.eq_ignore_ascii_case("ogg"))
+            {
+                self.audio_files.push(entry_path);
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -67,7 +89,9 @@ impl eframe::App for MainApp {
                 {
                     ui.menu_button("File", |ui| {
                         if ui.button("Open folder").clicked() {
-                            self.open_folder(Some(frame));
+                            if let Err(err) = self.open_folder(Some(frame)) {
+                                eprintln!("{err:?}");
+                            }
                             ui.close();
                         }
 
@@ -82,6 +106,24 @@ impl eframe::App for MainApp {
             });
         });
 
-        egui::CentralPanel::default().show(ctx, |_ui| {});
+        if let Some(path) = &self.work_folder {
+            if let Some(path_str) = path.to_str() {
+                egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
+                    ui.add_space(4.0);
+                    ui.weak(path_str);
+                    ui.add_space(2.0);
+                });
+            }
+        }
+
+        egui::CentralPanel::default().show(ctx, |ui| {
+            for audio_file in &self.audio_files {
+                if let Some(name) = audio_file.file_name() {
+                    if let Some(name) = name.to_str() {
+                        ui.label(name);
+                    }
+                }
+            }
+        });
     }
 }
