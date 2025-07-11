@@ -1,6 +1,6 @@
-#!/usr/bin/env bash
-# This scripts runs various CI-like checks in a convenient way.
-set -eux
+REM #!/usr/bin/env bash
+REM # This scripts runs various CI-like checks in a convenient way.
+REM set -eux
 
 cargo check --quiet --workspace --all-targets
 cargo check --quiet --workspace --all-features --lib --target wasm32-unknown-unknown
