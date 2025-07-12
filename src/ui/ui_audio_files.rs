@@ -1,4 +1,4 @@
-use egui::Id;
+use egui::{Id, Label};
 use std::path::PathBuf;
 
 #[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
@@ -33,15 +33,17 @@ impl UiAudioFiles {
                 let frame = egui::Frame::default().inner_margin(4.0);
 
                 let (_, dropped_payload) = ui.dnd_drop_zone::<AudioDndLocation, ()>(frame, |ui| {
-                    ui.set_min_size(egui::vec2(64.0, 100.0));
+                    ui.set_width(ui.available_width());
+                    ui.set_min_height(100.0);
 
-                    for (row, entry) in entries.iter().enumerate() {
-                        let location = AudioDndLocation { col, row };
+                    for (row_idx, entry) in entries.iter().enumerate() {
+                        let location = AudioDndLocation { col, row: row_idx };
 
                         let id = Id::new(("ui_audio_files_entry", entry.path.clone()));
                         let response = ui
                             .dnd_drag_source(id, location, |ui| {
-                                entry.ui_dnd(ui);
+                                entry
+                                    .ui_dnd(ui, (col == AudioDndColumn::Active).then_some(row_idx));
                             })
                             .response;
 
@@ -56,15 +58,15 @@ impl UiAudioFiles {
                             let insert_row_idx = if *hovered_payload == location {
                                 // We are dragged onto ourselves
                                 ui.painter().hline(rect.x_range(), rect.center().y, stroke);
-                                row
+                                row_idx
                             } else if pointer.y < rect.center().y {
                                 // Above us
                                 ui.painter().hline(rect.x_range(), rect.top(), stroke);
-                                row
+                                row_idx
                             } else {
                                 // Below us
                                 ui.painter().hline(rect.x_range(), rect.bottom(), stroke);
-                                row + 1
+                                row_idx + 1
                             };
 
                             if let Some(dragged_payload) = response.dnd_release_payload() {
@@ -111,14 +113,23 @@ struct AudioFileEntry {
 }
 
 impl AudioFileEntry {
-    fn name(&self) -> Option<&str> {
-        self.path.file_name().and_then(|n| n.to_str())
+    fn name(&self) -> Option<String> {
+        self.path
+            .with_extension("")
+            .file_name()
+            .and_then(|n| n.to_str())
+            .map(String::from)
     }
 
-    fn ui_dnd(&self, ui: &mut egui::Ui) {
-        if let Some(name) = self.name() {
-            ui.label(name);
-        }
+    fn ui_dnd(&self, ui: &mut egui::Ui, index: Option<usize>) {
+        ui.horizontal(|ui| {
+            if let Some(index) = index {
+                ui.strong(format!("{index}"));
+            }
+            if let Some(name) = self.name() {
+                ui.add(Label::new(name).truncate());
+            }
+        });
     }
 }
 

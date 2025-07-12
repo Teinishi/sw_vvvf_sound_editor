@@ -1,4 +1,5 @@
 use crate::ui::UiAudioFiles;
+use egui_extras::{Size, StripBuilder};
 use std::path::PathBuf;
 
 #[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
@@ -117,7 +118,14 @@ impl eframe::App for MainApp {
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            self.ui_audio_files.ui(ui);
+            StripBuilder::new(ui)
+                .size(Size::exact(250.0))
+                .size(Size::remainder())
+                .horizontal(|mut strip| {
+                    strip.cell(|ui| {
+                        self.ui_audio_files.ui(ui);
+                    });
+                });
         });
     }
 }

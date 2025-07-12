@@ -26,6 +26,7 @@ log = "0.4.27"
 serde = { version = "1.0.219", features = ["derive"] }
 rfd = "0.15.3"
 raw-window-handle = "0.6.2"
+egui_extras = "0.32.0"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
