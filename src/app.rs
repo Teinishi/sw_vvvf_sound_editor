@@ -41,41 +41,6 @@ impl MainApp {
             Default::default()
         }
     }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn open_folder<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle>(
-        &mut self,
-        parent: Option<&W>,
-    ) -> std::io::Result<()> {
-        let mut dialog = rfd::FileDialog::new();
-        if let Some(p) = parent {
-            dialog = dialog.set_parent(p);
-        }
-        if let Some(pathbuf) = dialog.pick_folder() {
-            self.read_folder(&pathbuf)?;
-            self.work_folder = Some(pathbuf);
-        }
-
-        Ok(())
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn read_folder<P: AsRef<std::path::Path>>(&mut self, path: P) -> std::io::Result<()> {
-        self.ui_audio_files.clear();
-
-        for entry in (std::fs::read_dir(path)?).flatten() {
-            let entry_path = entry.path();
-            if entry_path.is_file()
-                && entry_path
-                    .extension()
-                    .is_some_and(|ext| ext.eq_ignore_ascii_case("ogg"))
-            {
-                self.ui_audio_files.add_inactive_audio_file(entry_path);
-            }
-        }
-
-        Ok(())
-    }
 }
 
 impl eframe::App for MainApp {
@@ -89,13 +54,6 @@ impl eframe::App for MainApp {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
                     ui.menu_button("File", |ui| {
-                        if ui.button("Open folder").clicked() {
-                            if let Err(err) = self.open_folder(Some(frame)) {
-                                eprintln!("{err:?}");
-                            }
-                            ui.close();
-                        }
-
                         if ui.button("Quit").clicked() {
                             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                         }
@@ -119,11 +77,11 @@ impl eframe::App for MainApp {
 
         egui::CentralPanel::default().show(ctx, |ui| {
             StripBuilder::new(ui)
-                .size(Size::exact(250.0))
+                .size(Size::exact(200.0))
                 .size(Size::remainder())
                 .horizontal(|mut strip| {
                     strip.cell(|ui| {
-                        self.ui_audio_files.ui(ui);
+                        self.ui_audio_files.ui(ui, Some(frame));
                     });
                 });
         });

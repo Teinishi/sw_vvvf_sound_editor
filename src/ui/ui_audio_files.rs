@@ -1,118 +1,118 @@
-use egui::{Id, Label};
+#[cfg(not(target_arch = "wasm32"))]
+use egui::Button;
+use egui::{Id, Label, ScrollArea};
+use egui_extras::{Size, StripBuilder};
 use std::path::PathBuf;
 
 #[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
 pub struct UiAudioFiles {
-    inactive_audio_files: Vec<AudioFileEntry>,
-    active_audio_files: Vec<AudioFileEntry>,
+    audio_files: Vec<FileEntry>,
 }
 
 impl UiAudioFiles {
-    pub fn clear(&mut self) {
-        self.inactive_audio_files.clear();
-        self.active_audio_files.clear();
+    pub fn add_audio_file(&mut self, path: PathBuf) {
+        self.audio_files.push(FileEntry { path });
     }
 
-    pub fn add_inactive_audio_file(&mut self, path: PathBuf) {
-        self.inactive_audio_files.push(AudioFileEntry { path });
+    #[cfg(not(target_arch = "wasm32"))]
+    fn add_audio_file_dialog<
+        W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle,
+    >(
+        &mut self,
+        parent: Option<&W>,
+    ) {
+        let mut dialog = rfd::FileDialog::new();
+        if let Some(p) = parent {
+            dialog = dialog.set_parent(p);
+        }
+        dialog = dialog.add_filter("Ogg Vorbis File", &["ogg"]);
+        if let Some(paths) = dialog.pick_files() {
+            for path in paths {
+                self.add_audio_file(path);
+            }
+        }
     }
 
-    pub fn ui(&mut self, ui: &mut egui::Ui) {
-        let mut dnd_from_to: Option<(AudioDndLocation, AudioDndLocation)> = None;
+    pub fn ui(&mut self, ui: &mut egui::Ui, frame: Option<&eframe::Frame>) {
+        let mut dnd_from_to: Option<(DndLocation, DndLocation)> = None;
 
-        ui.columns(2, |uis| {
-            for (col_idx, col) in [AudioDndColumn::Inactive, AudioDndColumn::Active]
-                .into_iter()
-                .enumerate()
-            {
-                let ui = &mut uis[col_idx];
-                let entries = col.entries(self);
-
-                ui.label(col.name());
-
-                let frame = egui::Frame::default().inner_margin(4.0);
-
-                let (_, dropped_payload) = ui.dnd_drop_zone::<AudioDndLocation, ()>(frame, |ui| {
-                    ui.set_width(ui.available_width());
-                    ui.set_min_height(100.0);
-
-                    for (row_idx, entry) in entries.iter().enumerate() {
-                        let location = AudioDndLocation { col, row: row_idx };
-
-                        let id = Id::new(("ui_audio_files_entry", entry.path.clone()));
-                        let response = ui
-                            .dnd_drag_source(id, location, |ui| {
-                                entry
-                                    .ui_dnd(ui, (col == AudioDndColumn::Active).then_some(row_idx));
-                            })
-                            .response;
-
-                        if let (Some(pointer), Some(hovered_payload)) = (
-                            ui.input(|i| i.pointer.interact_pos()),
-                            response.dnd_hover_payload::<AudioDndLocation>(),
-                        ) {
-                            let rect = response.rect;
-
-                            // Preview insertion:
-                            let stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
-                            let insert_row_idx = if *hovered_payload == location {
-                                // We are dragged onto ourselves
-                                ui.painter().hline(rect.x_range(), rect.center().y, stroke);
-                                row_idx
-                            } else if pointer.y < rect.center().y {
-                                // Above us
-                                ui.painter().hline(rect.x_range(), rect.top(), stroke);
-                                row_idx
-                            } else {
-                                // Below us
-                                ui.painter().hline(rect.x_range(), rect.bottom(), stroke);
-                                row_idx + 1
-                            };
-
-                            if let Some(dragged_payload) = response.dnd_release_payload() {
-                                // The user dropped onto this item.
-                                dnd_from_to = Some((
-                                    *dragged_payload,
-                                    AudioDndLocation {
-                                        col,
-                                        row: insert_row_idx,
-                                    },
-                                ));
-                            }
-                        }
-                    }
+        StripBuilder::new(ui)
+            .size(Size::exact(20.0))
+            .size(Size::remainder())
+            .sizes(Size::exact(20.0), 2)
+            .vertical(|mut strip| {
+                strip.cell(|ui| {
+                    ui.label("Audio Files");
                 });
 
-                if let Some(dropped_payload) = dropped_payload {
-                    // The user dropped onto the column, but not on any one item.
-                    dnd_from_to = Some((
-                        *dropped_payload,
-                        AudioDndLocation {
-                            col,
-                            row: usize::MAX, // Inset last
-                        },
-                    ));
-                }
-            }
-        });
+                strip.cell(|ui| {
+                    ScrollArea::vertical().show(ui, |ui| {
+                        ui_list_dnd(ui, &self.audio_files, &mut dnd_from_to);
+                    });
+                });
 
-        if let Some((from, mut to)) = dnd_from_to {
-            if from.col == to.col && from.row < to.row {
-                to.row -= 1;
+                strip.strip(|builder| {
+                    builder
+                        .size(Size::remainder())
+                        .size(Size::relative(0.3))
+                        .horizontal(|mut strip| {
+                            strip.cell(|ui| {
+                                let (_, dropped_payload) = ui.dnd_drop_zone::<DndLocation, ()>(
+                                    egui::Frame::default(),
+                                    |ui| {
+                                        ui.set_min_size(ui.available_size());
+                                        ui.centered_and_justified(|ui| {
+                                            ui.label("Discard");
+                                        });
+                                    },
+                                );
+                                if let Some(dropped_payload) = dropped_payload {
+                                    // The user dropped onto the column
+                                    dnd_from_to = Some((*dropped_payload, DndLocation::Discard));
+                                }
+                            });
+
+                            strip.cell(|ui| {
+                                if ui
+                                    .add_sized(ui.available_size(), Button::new("All"))
+                                    .clicked()
+                                {
+                                    self.audio_files.clear();
+                                }
+                            });
+                        });
+                });
+
+                strip.cell(|ui| {
+                    if ui
+                        .add_sized(ui.available_size(), Button::new("Add"))
+                        .clicked()
+                    {
+                        #[cfg(not(target_arch = "wasm32"))]
+                        self.add_audio_file_dialog(frame);
+                    }
+                });
+            });
+
+        if let Some((DndLocation::Active(from_idx), to)) = dnd_from_to {
+            let item = self.audio_files.remove(from_idx);
+            if let DndLocation::Active(mut to_idx) = to {
+                if from_idx < to_idx {
+                    to_idx -= 1;
+                }
+                self.audio_files
+                    .insert(to_idx.min(self.audio_files.len()), item);
             }
-            let item = from.col.entries_mut(self).remove(from.row);
-            let to_enteis = to.col.entries_mut(self);
-            to_enteis.insert(to.row.min(to_enteis.len()), item);
         }
     }
 }
 
 #[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
-struct AudioFileEntry {
+struct FileEntry {
     path: PathBuf,
 }
 
-impl AudioFileEntry {
+impl FileEntry {
     fn name(&self) -> Option<String> {
         self.path
             .with_extension("")
@@ -124,7 +124,7 @@ impl AudioFileEntry {
     fn ui_dnd(&self, ui: &mut egui::Ui, index: Option<usize>) {
         ui.horizontal(|ui| {
             if let Some(index) = index {
-                ui.strong(format!("{index}"));
+                ui.strong(format!("{index}."));
             }
             if let Some(name) = self.name() {
                 ui.add(Label::new(name).truncate());
@@ -134,36 +134,67 @@ impl AudioFileEntry {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum AudioDndColumn {
-    Inactive,
-    Active,
+enum DndLocation {
+    Active(usize),
+    Discard,
 }
 
-impl AudioDndColumn {
-    fn name(&self) -> &'static str {
-        match self {
-            Self::Inactive => "Inactive Files",
-            Self::Active => "Active Files",
-        }
-    }
+fn ui_list_dnd(
+    ui: &mut egui::Ui,
+    entries: &[FileEntry],
+    dnd_from_to: &mut Option<(DndLocation, DndLocation)>,
+) {
+    let (_, dropped_payload) =
+        ui.dnd_drop_zone::<DndLocation, ()>(egui::Frame::default().inner_margin(4.0), |ui| {
+            ui.set_min_size(ui.available_size());
 
-    fn entries<'a>(&self, ui_audio_files: &'a UiAudioFiles) -> &'a Vec<AudioFileEntry> {
-        match self {
-            Self::Inactive => &ui_audio_files.inactive_audio_files,
-            Self::Active => &ui_audio_files.active_audio_files,
-        }
-    }
+            for (row_idx, entry) in entries.iter().enumerate() {
+                let location = DndLocation::Active(row_idx);
 
-    fn entries_mut<'a>(&self, ui_audio_files: &'a mut UiAudioFiles) -> &'a mut Vec<AudioFileEntry> {
-        match self {
-            Self::Inactive => &mut ui_audio_files.inactive_audio_files,
-            Self::Active => &mut ui_audio_files.active_audio_files,
-        }
-    }
-}
+                let id = Id::new(("ui_audio_files_entry", entry.path.clone()));
+                let response = ui
+                    .dnd_drag_source(id, location, |ui| {
+                        ui.set_width(ui.available_width());
+                        entry.ui_dnd(ui, Some(row_idx));
+                    })
+                    .response;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct AudioDndLocation {
-    col: AudioDndColumn,
-    row: usize,
+                if let (Some(pointer), Some(hovered_payload)) = (
+                    ui.input(|i| i.pointer.interact_pos()),
+                    response.dnd_hover_payload::<DndLocation>(),
+                ) {
+                    let rect = response.rect;
+
+                    // Preview insertion:
+                    let stroke = egui::Stroke::new(1.0, egui::Color32::WHITE);
+                    let insert_row_idx = if *hovered_payload == location {
+                        // We are dragged onto ourselves
+                        ui.painter().hline(rect.x_range(), rect.center().y, stroke);
+                        row_idx
+                    } else if pointer.y < rect.center().y {
+                        // Above us
+                        ui.painter().hline(rect.x_range(), rect.top(), stroke);
+                        row_idx
+                    } else {
+                        // Below us
+                        ui.painter().hline(rect.x_range(), rect.bottom(), stroke);
+                        row_idx + 1
+                    };
+
+                    if let Some(dragged_payload) = response.dnd_release_payload() {
+                        // The user dropped onto this item.
+                        *dnd_from_to =
+                            Some((*dragged_payload, DndLocation::Active(insert_row_idx)));
+                    }
+                }
+            }
+        });
+
+    if let Some(dropped_payload) = dropped_payload {
+        // The user dropped onto the column, but not on any one item.
+        *dnd_from_to = Some((
+            *dropped_payload,
+            DndLocation::Active(usize::MAX), // Inset last
+        ));
+    }
 }
