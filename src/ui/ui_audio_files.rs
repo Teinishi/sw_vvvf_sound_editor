@@ -4,14 +4,18 @@ use egui::{Id, Label, ScrollArea};
 use egui_extras::{Size, StripBuilder};
 use std::path::PathBuf;
 
-#[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Default)]
 pub struct UiAudioFiles {
     audio_files: Vec<FileEntry>,
 }
 
 impl UiAudioFiles {
     pub fn add_audio_file(&mut self, path: PathBuf) {
-        self.audio_files.push(FileEntry { path });
+        let entry = FileEntry { path };
+        if self.audio_files.iter().any(|item| item == &entry) {
+            return;
+        }
+        self.audio_files.push(entry);
     }
 
     #[cfg(not(target_arch = "wasm32"))]
@@ -107,7 +111,7 @@ impl UiAudioFiles {
     }
 }
 
-#[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
 struct FileEntry {
     path: PathBuf,
 }

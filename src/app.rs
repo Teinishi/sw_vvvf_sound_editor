@@ -1,11 +1,12 @@
-use crate::ui::UiAudioFiles;
+use crate::ui::{UiAudioFiles, UiVolumePitchGraph};
 use egui_extras::{Size, StripBuilder};
-use std::path::PathBuf;
 
 #[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
 pub struct MainApp {
-    work_folder: Option<PathBuf>,
+    #[serde(skip)]
     ui_audio_files: UiAudioFiles,
+    #[serde(skip)]
+    ui_volume_pitch_graph: UiVolumePitchGraph,
 }
 
 impl MainApp {
@@ -65,7 +66,7 @@ impl eframe::App for MainApp {
             });
         });
 
-        if let Some(path) = &self.work_folder {
+        /*if let Some(path) = &self.work_folder {
             if let Some(path_str) = path.to_str() {
                 egui::TopBottomPanel::bottom("bottom_panel").show(ctx, |ui| {
                     ui.add_space(4.0);
@@ -73,7 +74,7 @@ impl eframe::App for MainApp {
                     ui.add_space(2.0);
                 });
             }
-        }
+        }*/
 
         egui::CentralPanel::default().show(ctx, |ui| {
             StripBuilder::new(ui)
@@ -82,6 +83,12 @@ impl eframe::App for MainApp {
                 .horizontal(|mut strip| {
                     strip.cell(|ui| {
                         self.ui_audio_files.ui(ui, Some(frame));
+                    });
+
+                    strip.cell(|ui| {
+                        egui::Frame::canvas(ui.style()).show(ui, |ui| {
+                            self.ui_volume_pitch_graph.ui(ui);
+                        });
                     });
                 });
         });
