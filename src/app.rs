@@ -1,10 +1,10 @@
+use crate::ui::UiAudioFiles;
 use std::path::PathBuf;
 
 #[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
-#[serde(default)]
 pub struct MainApp {
     work_folder: Option<PathBuf>,
-    audio_files: Vec<PathBuf>,
+    ui_audio_files: UiAudioFiles,
 }
 
 impl MainApp {
@@ -60,7 +60,7 @@ impl MainApp {
 
     #[cfg(not(target_arch = "wasm32"))]
     fn read_folder<P: AsRef<std::path::Path>>(&mut self, path: P) -> std::io::Result<()> {
-        self.audio_files.clear();
+        self.ui_audio_files.clear();
 
         for entry in (std::fs::read_dir(path)?).flatten() {
             let entry_path = entry.path();
@@ -69,7 +69,7 @@ impl MainApp {
                     .extension()
                     .is_some_and(|ext| ext.eq_ignore_ascii_case("ogg"))
             {
-                self.audio_files.push(entry_path);
+                self.ui_audio_files.add_inactive_audio_file(entry_path);
             }
         }
 
@@ -117,13 +117,7 @@ impl eframe::App for MainApp {
         }
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            for audio_file in &self.audio_files {
-                if let Some(name) = audio_file.file_name() {
-                    if let Some(name) = name.to_str() {
-                        ui.label(name);
-                    }
-                }
-            }
+            self.ui_audio_files.ui(ui);
         });
     }
 }
