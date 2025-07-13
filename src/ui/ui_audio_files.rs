@@ -1,43 +1,17 @@
 #[cfg(not(target_arch = "wasm32"))]
+use std::path::PathBuf;
+
+use crate::state::{AudioEntry, State};
 use egui::Button;
 use egui::{Id, Label, ScrollArea};
 use egui_extras::{Size, StripBuilder};
-use std::path::PathBuf;
 
 #[derive(Debug, Default)]
-pub struct UiAudioFiles {
-    audio_files: Vec<FileEntry>,
-}
+pub struct UiAudioFiles;
 
 impl UiAudioFiles {
-    pub fn add_audio_file(&mut self, path: PathBuf) {
-        let entry = FileEntry { path };
-        if self.audio_files.iter().any(|item| item == &entry) {
-            return;
-        }
-        self.audio_files.push(entry);
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn add_audio_file_dialog<
-        W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle,
-    >(
-        &mut self,
-        parent: Option<&W>,
-    ) {
-        let mut dialog = rfd::FileDialog::new();
-        if let Some(p) = parent {
-            dialog = dialog.set_parent(p);
-        }
-        dialog = dialog.add_filter("Ogg Vorbis File", &["ogg"]);
-        if let Some(paths) = dialog.pick_files() {
-            for path in paths {
-                self.add_audio_file(path);
-            }
-        }
-    }
-
-    pub fn ui(&mut self, ui: &mut egui::Ui, frame: Option<&eframe::Frame>) {
+    #[expect(clippy::unused_self)]
+    pub fn ui(&self, ui: &mut egui::Ui, frame: Option<&eframe::Frame>, state: &mut State) {
         let mut dnd_from_to: Option<(DndLocation, DndLocation)> = None;
 
         StripBuilder::new(ui)
@@ -51,7 +25,7 @@ impl UiAudioFiles {
 
                 strip.cell(|ui| {
                     ScrollArea::vertical().show(ui, |ui| {
-                        ui_list_dnd(ui, &self.audio_files, &mut dnd_from_to);
+                        ui_list_dnd(ui, &state.audio_entries, &mut dnd_from_to);
                     });
                 });
 
@@ -81,7 +55,7 @@ impl UiAudioFiles {
                                     .add_sized(ui.available_size(), Button::new("All"))
                                     .clicked()
                                 {
-                                    self.audio_files.clear();
+                                    state.clear_entries();
                                 }
                             });
                         });
@@ -93,47 +67,28 @@ impl UiAudioFiles {
                         .clicked()
                     {
                         #[cfg(not(target_arch = "wasm32"))]
-                        self.add_audio_file_dialog(frame);
+                        if let Some(paths) = add_audio_file_dialog(frame) {
+                            for path in paths {
+                                state.add_audio_entry(path);
+                            }
+                        }
                     }
                 });
             });
 
         if let Some((DndLocation::Active(from_idx), to)) = dnd_from_to {
-            let item = self.audio_files.remove(from_idx);
-            if let DndLocation::Active(mut to_idx) = to {
-                if from_idx < to_idx {
-                    to_idx -= 1;
+            match to {
+                DndLocation::Active(mut to_idx) => {
+                    if from_idx < to_idx {
+                        to_idx -= 1;
+                    }
+                    state.move_entry(from_idx, to_idx);
                 }
-                self.audio_files
-                    .insert(to_idx.min(self.audio_files.len()), item);
+                DndLocation::Discard => {
+                    state.remove_entry(from_idx);
+                }
             }
         }
-    }
-}
-
-#[derive(Debug, Default, Clone, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
-struct FileEntry {
-    path: PathBuf,
-}
-
-impl FileEntry {
-    fn name(&self) -> Option<String> {
-        self.path
-            .with_extension("")
-            .file_name()
-            .and_then(|n| n.to_str())
-            .map(String::from)
-    }
-
-    fn ui_dnd(&self, ui: &mut egui::Ui, index: Option<usize>) {
-        ui.horizontal(|ui| {
-            if let Some(index) = index {
-                ui.strong(format!("{index}."));
-            }
-            if let Some(name) = self.name() {
-                ui.add(Label::new(name).truncate());
-            }
-        });
     }
 }
 
@@ -145,7 +100,7 @@ enum DndLocation {
 
 fn ui_list_dnd(
     ui: &mut egui::Ui,
-    entries: &[FileEntry],
+    entries: &[AudioEntry],
     dnd_from_to: &mut Option<(DndLocation, DndLocation)>,
 ) {
     let (_, dropped_payload) =
@@ -155,11 +110,13 @@ fn ui_list_dnd(
             for (row_idx, entry) in entries.iter().enumerate() {
                 let location = DndLocation::Active(row_idx);
 
-                let id = Id::new(("ui_audio_files_entry", entry.path.clone()));
+                let id = Id::new(("ui_audio_files_entry", entry.path().clone()));
                 let response = ui
                     .dnd_drag_source(id, location, |ui| {
                         ui.set_width(ui.available_width());
-                        entry.ui_dnd(ui, Some(row_idx));
+                        if let Some(name) = entry.name() {
+                            ui_entry_dnd(ui, Some(row_idx), &name);
+                        }
                     })
                     .response;
 
@@ -201,4 +158,27 @@ fn ui_list_dnd(
             DndLocation::Active(usize::MAX), // Inset last
         ));
     }
+}
+
+fn ui_entry_dnd(ui: &mut egui::Ui, index: Option<usize>, name: &str) {
+    ui.horizontal(|ui| {
+        if let Some(index) = index {
+            ui.strong(format!("{index}."));
+        }
+        ui.add(Label::new(name).truncate());
+    });
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn add_audio_file_dialog<
+    W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle,
+>(
+    parent: Option<&W>,
+) -> Option<Vec<PathBuf>> {
+    let mut dialog = rfd::FileDialog::new();
+    if let Some(p) = parent {
+        dialog = dialog.set_parent(p);
+    }
+    dialog = dialog.add_filter("Ogg Vorbis File", &["ogg"]);
+    dialog.pick_files()
 }

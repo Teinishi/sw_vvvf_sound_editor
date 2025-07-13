@@ -1,8 +1,12 @@
-use crate::ui::{UiAudioFiles, UiVolumePitchGraph};
+use crate::{
+    state::State,
+    ui::{UiAudioFiles, UiVolumePitchGraph},
+};
 use egui_extras::{Size, StripBuilder};
 
 #[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
 pub struct MainApp {
+    state: State,
     #[serde(skip)]
     ui_audio_files: UiAudioFiles,
     #[serde(skip)]
@@ -82,7 +86,7 @@ impl eframe::App for MainApp {
                 .size(Size::remainder())
                 .horizontal(|mut strip| {
                     strip.cell(|ui| {
-                        self.ui_audio_files.ui(ui, Some(frame));
+                        self.ui_audio_files.ui(ui, Some(frame), &mut self.state);
                     });
 
                     strip.cell(|ui| {

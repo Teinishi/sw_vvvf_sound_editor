@@ -2,4 +2,5 @@
 
 mod app;
 pub use app::MainApp;
+mod state;
 mod ui;
