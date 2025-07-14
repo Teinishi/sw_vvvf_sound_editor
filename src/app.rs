@@ -4,13 +4,17 @@ use crate::{
 };
 use egui_extras::{Size, StripBuilder};
 
+fn default_ui_volume_plot() -> UiFunctionEdit {
+    UiFunctionEdit::new([0.0, 0.0], [100.0, 1.1])
+}
+
 #[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
 pub struct MainApp {
     state: State,
     #[serde(skip)]
     ui_audio_files: UiAudioFiles,
-    #[serde(skip)]
-    ui_volume_pitch_graph: UiFunctionEdit,
+    #[serde(skip, default = "default_ui_volume_plot")]
+    ui_volume_plot: UiFunctionEdit,
 }
 
 impl MainApp {
@@ -90,7 +94,7 @@ impl eframe::App for MainApp {
                     });
 
                     strip.cell(|ui| {
-                        self.ui_volume_pitch_graph.ui(ui, &mut self.state);
+                        self.ui_volume_plot.ui(ui, &mut self.state);
                     });
                 });
         });

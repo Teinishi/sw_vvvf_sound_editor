@@ -161,23 +161,16 @@ impl EditableFunction {
         }
     }
 
-    pub fn move_point(&mut self, index: usize, delta: (f64, f64)) {
-        let left = index
-            .checked_sub(1)
-            .and_then(|l| self.points.get(l).map(|p| p.0));
-        let right = index
-            .checked_add(1)
-            .and_then(|l| self.points.get(l).map(|p| p.0));
+    pub fn move_point_to(&mut self, index: usize, mut pos: (f64, f64)) {
+        if let Some(left) = index.checked_sub(1).and_then(|l| self.points.get(l)) {
+            pos.0 = pos.0.max(left.0);
+        }
+        if let Some(right) = index.checked_add(1).and_then(|l| self.points.get(l)) {
+            pos.0 = pos.0.min(right.0);
+        }
+        pos = self.bounds.clamp(pos);
         if let Some(point) = self.points.get_mut(index) {
-            point.0 += delta.0;
-            point.1 += delta.1;
-            if let Some(left) = left {
-                point.0 = point.0.max(left);
-            }
-            if let Some(right) = right {
-                point.0 = point.0.min(right);
-            }
-            *point = self.bounds.clamp(*point);
+            *point = pos;
         }
     }
 
