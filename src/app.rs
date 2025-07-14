@@ -1,6 +1,6 @@
 use crate::{
     state::State,
-    ui::{UiAudioFiles, UiVolumePitchGraph},
+    ui::{UiAudioFiles, UiFunctionEdit},
 };
 use egui_extras::{Size, StripBuilder};
 
@@ -10,7 +10,7 @@ pub struct MainApp {
     #[serde(skip)]
     ui_audio_files: UiAudioFiles,
     #[serde(skip)]
-    ui_volume_pitch_graph: UiVolumePitchGraph,
+    ui_volume_pitch_graph: UiFunctionEdit,
 }
 
 impl MainApp {
@@ -90,9 +90,7 @@ impl eframe::App for MainApp {
                     });
 
                     strip.cell(|ui| {
-                        egui::Frame::canvas(ui.style()).show(ui, |ui| {
-                            self.ui_volume_pitch_graph.ui(ui);
-                        });
+                        self.ui_volume_pitch_graph.ui(ui, &mut self.state);
                     });
                 });
         });
