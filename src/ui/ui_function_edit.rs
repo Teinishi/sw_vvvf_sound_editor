@@ -11,26 +11,6 @@ pub struct UiFunctionEdit {
 }
 
 impl UiFunctionEdit {
-    fn init_plot<'a>() -> Plot<'a> {
-        Plot::new("volume_graph")
-            .show_axes(true)
-            .show_grid(true)
-            .allow_drag(false)
-            .default_x_bounds(0.0, 80.0)
-            .default_y_bounds(0.0, 1.1)
-            .custom_x_axes(vec![])
-            .custom_y_axes(vec![AxisHints::new_y().label("Volume").formatter(
-                |mark, _| {
-                    let percent = 100.0 * mark.value;
-                    if is_approx_integer(percent) && percent < 100.5 {
-                        format!("{percent:.0}%")
-                    } else {
-                        String::new()
-                    }
-                },
-            )])
-    }
-
     pub fn ui(&mut self, ui: &mut egui::Ui, state: &mut State) {
         let plot = Self::init_plot();
 
@@ -50,9 +30,10 @@ impl UiFunctionEdit {
             let pointer_screen_pos = response.interact_pointer_pos();
 
             let mut remove_point_index = None;
-
+            let mut color_index = 0;
             for (index, entry) in state.audio_entries.iter_mut().enumerate() {
                 let is_selected = self.is_selected(entry);
+                let color = Self::auto_color(&mut color_index);
 
                 let marker = if is_selected {
                     // マーカークリック・ドラッグ
@@ -93,6 +74,7 @@ impl UiFunctionEdit {
                         .highlight(true)
                         .radius(marker_radius / 2f32.sqrt())
                         .shape(egui_plot::MarkerShape::Diamond)
+                        .color(color)
                         .filled(false)
                         .allow_hover(false);
                     Some(marker)
@@ -110,6 +92,7 @@ impl UiFunctionEdit {
                     ),
                 )
                 .width(2.0)
+                .color(color)
                 .highlight(is_selected);
                 plot_ui.line(line);
 
@@ -151,6 +134,26 @@ impl UiFunctionEdit {
         }
     }
 
+    fn init_plot<'a>() -> Plot<'a> {
+        Plot::new("volume_graph")
+            .show_axes(true)
+            .show_grid(true)
+            .allow_drag(false)
+            .default_x_bounds(0.0, 80.0)
+            .default_y_bounds(0.0, 1.1)
+            .custom_x_axes(vec![])
+            .custom_y_axes(vec![AxisHints::new_y().label("Volume").formatter(
+                |mark, _| {
+                    let percent = 100.0 * mark.value;
+                    if is_approx_integer(percent) && percent < 100.5 {
+                        format!("{percent:.0}%")
+                    } else {
+                        String::new()
+                    }
+                },
+            )])
+    }
+
     fn plot_drag(plot_ui: &mut egui_plot::PlotUi<'_>, enable: bool) {
         if enable {
             // ドラッグで移動しつつ、第一象限から外れないように
@@ -164,6 +167,14 @@ impl UiFunctionEdit {
             // なぜかこれをしないとデフォルト位置に戻される
             plot_ui.translate_bounds(egui::Vec2::ZERO);
         }
+    }
+
+    fn auto_color(color_index: &mut i32) -> egui::Color32 {
+        let i = *color_index;
+        *color_index += 1;
+        let golden_ratio = (5f32.sqrt() - 1.0) / 2.0;
+        let h = i as f32 * golden_ratio;
+        egui::epaint::Hsva::new(h, 0.85, 0.5, 1.0).into()
     }
 
     fn is_selected(&self, entry: &AudioEntry) -> bool {

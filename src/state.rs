@@ -45,11 +45,11 @@ impl AudioEntry {
         Self {
             path,
             volume_function: EditableFunction {
-                points: vec![(0.0, 1.0)],
+                points: vec![(40.0, 0.5)],
                 bounds: Bounds::new(Some(0.0), None, Some(0.0), Some(1.0)),
             },
             pitch_function: EditableFunction {
-                points: vec![(0.0, 1.0)],
+                points: vec![(40.0, 1.0)],
                 bounds: Bounds::new(Some(0.0), None, Some(0.0), None),
             },
         }

@@ -15,12 +15,26 @@ impl UiAudioFiles {
         let mut dnd_from_to: Option<(DndLocation, DndLocation)> = None;
 
         StripBuilder::new(ui)
-            .size(Size::exact(20.0))
-            .size(Size::remainder())
             .sizes(Size::exact(20.0), 2)
+            .size(Size::remainder())
+            .size(Size::exact(20.0))
             .vertical(|mut strip| {
                 strip.cell(|ui| {
                     ui.label("Audio Files");
+                });
+
+                strip.cell(|ui| {
+                    if ui
+                        .add_sized(ui.available_size(), Button::new("Add"))
+                        .clicked()
+                    {
+                        #[cfg(not(target_arch = "wasm32"))]
+                        if let Some(paths) = add_audio_file_dialog(frame) {
+                            for path in paths {
+                                state.add_audio_entry(path);
+                            }
+                        }
+                    }
                 });
 
                 strip.cell(|ui| {
@@ -59,20 +73,6 @@ impl UiAudioFiles {
                                 }
                             });
                         });
-                });
-
-                strip.cell(|ui| {
-                    if ui
-                        .add_sized(ui.available_size(), Button::new("Add"))
-                        .clicked()
-                    {
-                        #[cfg(not(target_arch = "wasm32"))]
-                        if let Some(paths) = add_audio_file_dialog(frame) {
-                            for path in paths {
-                                state.add_audio_entry(path);
-                            }
-                        }
-                    }
                 });
             });
 
