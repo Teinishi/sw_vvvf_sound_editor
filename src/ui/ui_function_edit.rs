@@ -4,7 +4,6 @@ use egui_plot::{GridMark, Line, Plot, PlotPoint, PlotPoints, Points};
 
 #[derive(Debug, Default)]
 pub struct UiFunctionEdit {
-    default_bounds_modified: bool,
     dragging_point: Option<(usize, (f64, f64), Pos2)>,
     last_pointer_button_down: bool,
 }
@@ -26,9 +25,10 @@ impl UiFunctionEdit {
             self.dragging_point = None;
         }
         let plot_response = plot.show(ui, |plot_ui| {
-            let r = self.plot_content(plot_ui, entries, selection);
+            self.plot_content(plot_ui, entries, selection);
+            Self::plot_drag(plot_ui, self.dragging_point.is_none());
             inside_plot(plot_ui);
-            r
+            plot_ui.pointer_coordinate()
         });
 
         // 線のクリック処理
@@ -62,7 +62,7 @@ impl UiFunctionEdit {
         plot_ui: &mut egui_plot::PlotUi<'a>,
         entries: &'a mut [(AudioEntryId, egui::Color32, &mut EditableFunction)],
         selection: &Option<AudioEntryId>,
-    ) -> Option<PlotPoint> {
+    ) {
         let marker_radius: f32 = 8.0;
         let response = plot_ui.response();
         let width_usize = response.rect.width().round() as usize;
@@ -132,13 +132,6 @@ impl UiFunctionEdit {
                 plot_ui.points(marker);
             }
         }
-
-        // パン制御
-        self.plot_drag(plot_ui, self.dragging_point.is_none());
-        // デフォルトに戻す
-        //plot_ui.set_plot_bounds(self.default_bounds);
-
-        plot_ui.pointer_coordinate()
     }
 
     fn check_mouse_down(&mut self, response: &Response) -> bool {
@@ -177,22 +170,25 @@ impl UiFunctionEdit {
         func.remove_point(index);
     }
 
-    fn plot_drag(&mut self, plot_ui: &mut egui_plot::PlotUi<'_>, enable: bool) {
+    fn plot_drag(plot_ui: &mut egui_plot::PlotUi<'_>, enable: bool) -> bool {
+        let mut dragged = false;
+        let mut bounds = plot_ui.plot_bounds();
+
         if enable {
-            // ドラッグで移動しつつ、第一象限から外れないように
+            // ドラッグで移動
             let delta = plot_ui.pointer_coordinate_drag_delta();
             if delta.length_sq() > 1e-6 {
-                self.default_bounds_modified = true;
+                dragged = true;
+                bounds.translate((-delta.x as f64, -delta.y as f64));
             }
-            let mut bounds = plot_ui.plot_bounds();
-            bounds.translate((-delta.x as f64, -delta.y as f64));
-            let bounds_min = bounds.min();
-            bounds.translate(((-bounds_min[0]).max(0.0), (-bounds_min[1]).max(0.0)));
-            plot_ui.set_plot_bounds(bounds);
-        } else {
-            // なぜかこれをしないとデフォルト位置に戻され
-            plot_ui.set_plot_bounds(plot_ui.plot_bounds());
         }
+
+        //第一象限から外れないように
+        let bounds_min = bounds.min();
+        bounds.translate(((-bounds_min[0]).max(0.0), (-bounds_min[1]).max(0.0)));
+        plot_ui.set_plot_bounds(bounds);
+
+        dragged
     }
 }
 

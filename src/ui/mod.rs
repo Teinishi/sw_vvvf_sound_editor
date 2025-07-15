@@ -4,3 +4,5 @@ mod ui_audio_files;
 pub use ui_audio_files::UiAudioFiles;
 mod ui_function_edit;
 pub use ui_function_edit::{UiFunctionEdit, aixs_hint_formatter_percentage};
+mod ui_pitch_volume_plot;
+pub use ui_pitch_volume_plot::UiPitchVolumePlots;

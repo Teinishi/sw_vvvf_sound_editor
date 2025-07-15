@@ -1,9 +1,8 @@
 use crate::{
     state::State,
-    ui::{UiAudioFiles, UiFunctionEdit, aixs_hint_formatter_percentage},
+    ui::{UiAudioFiles, UiPitchVolumePlots},
 };
 use egui_extras::{Size, StripBuilder};
-use egui_plot::{AxisHints, Plot};
 
 #[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
 pub struct MainApp {
@@ -11,9 +10,7 @@ pub struct MainApp {
     #[serde(skip)]
     ui_audio_files: UiAudioFiles,
     #[serde(skip)]
-    ui_pitch_plot: UiFunctionEdit,
-    #[serde(skip)]
-    ui_volume_plot: UiFunctionEdit,
+    ui_pitch_volume_plots: UiPitchVolumePlots,
 }
 
 impl MainApp {
@@ -93,45 +90,7 @@ impl eframe::App for MainApp {
                     });
 
                     strip.cell(|ui| {
-                        let height = ui.available_height();
-
-                        let mut selection = self.state.selection.clone();
-                        self.ui_pitch_plot.ui(
-                            ui,
-                            &mut self.state.pitch_entries_mut(),
-                            &mut selection,
-                            || {
-                                Plot::new("plot_edit_volume")
-                                    .show_axes(true)
-                                    .show_grid(true)
-                                    .default_x_bounds(0.0, 100.0)
-                                    .default_y_bounds(0.0, 3.0)
-                                    .custom_x_axes(vec![])
-                                    .custom_y_axes(vec![AxisHints::new_y().label("Pitch")])
-                                    .height(height / 2.0)
-                            },
-                            |_| {},
-                        );
-                        self.ui_volume_plot.ui(
-                            ui,
-                            &mut self.state.volume_entries_mut(),
-                            &mut selection,
-                            || {
-                                Plot::new("plot_edit_pitch")
-                                    .show_axes(true)
-                                    .show_grid(true)
-                                    .default_x_bounds(0.0, 100.0)
-                                    .default_y_bounds(0.0, 1.1)
-                                    .custom_x_axes(vec![AxisHints::new_x().label("Speed")])
-                                    .custom_y_axes(vec![
-                                        AxisHints::new_y()
-                                            .label("Volume")
-                                            .formatter(aixs_hint_formatter_percentage),
-                                    ])
-                            },
-                            |_| {},
-                        );
-                        self.state.selection = selection;
+                        self.ui_pitch_volume_plots.ui(ui, &mut self.state);
                     });
                 });
         });
