@@ -1,6 +1,6 @@
 use crate::{
     state::State,
-    ui::{UiAudioFiles, UiPitchVolumePlots},
+    ui::{UiAudioFiles, UiPitchVolumePlots, UiPointEdit},
 };
 use egui::{CentralPanel, Frame, MenuBar, SidePanel, Sides, TopBottomPanel, vec2};
 
@@ -8,8 +8,11 @@ use egui::{CentralPanel, Frame, MenuBar, SidePanel, Sides, TopBottomPanel, vec2}
 pub struct MainApp {
     state: State,
     show_audio_files_panel: bool,
+    show_point_edit_panel: bool,
     #[serde(skip)]
     ui_audio_files: UiAudioFiles,
+    #[serde(skip)]
+    ui_point_edit: UiPointEdit,
     #[serde(skip)]
     ui_pitch_volume_plots: UiPitchVolumePlots,
 }
@@ -19,7 +22,9 @@ impl Default for MainApp {
         Self {
             state: State::default(),
             show_audio_files_panel: true,
+            show_point_edit_panel: true,
             ui_audio_files: UiAudioFiles,
+            ui_point_edit: UiPointEdit,
             ui_pitch_volume_plots: UiPitchVolumePlots::default(),
         }
     }
@@ -83,6 +88,7 @@ impl eframe::App for MainApp {
                         ui.separator();
 
                         ui.toggle_value(&mut self.show_audio_files_panel, "Audio Files");
+                        ui.toggle_value(&mut self.show_point_edit_panel, "Point Edit");
                     },
                     |ui| {
                         egui::widgets::global_theme_preference_buttons(ui);
@@ -109,6 +115,18 @@ impl eframe::App for MainApp {
                 .show(ctx, |ui| {
                     ui.style_mut().spacing.item_spacing = vec2(8.0, 8.0);
                     self.ui_audio_files.ui(ui, Some(frame), &mut self.state);
+                });
+        }
+
+        if self.show_point_edit_panel {
+            SidePanel::left("point_edit_panel")
+                .frame(Frame::side_top_panel(&ctx.style()).inner_margin(8.0))
+                .default_width(200.0)
+                .resizable(true)
+                .show(ctx, |ui| {
+                    ui.style_mut().spacing.item_spacing = vec2(8.0, 8.0);
+                    self.ui_point_edit
+                        .ui(ui, &self.state.audio_entries, &mut self.state.selection);
                 });
         }
 

@@ -1,4 +1,4 @@
-use super::{UiFunctionEdit, aixs_hint_formatter_percentage};
+use super::{UiPlotEdit, aixs_hint_formatter_percentage};
 use crate::state::State;
 use egui::Sides;
 use egui_plot::{AxisHints, Plot};
@@ -80,8 +80,8 @@ enum PlotVariant {
 
 #[derive(Debug)]
 pub struct UiPitchVolumePlots {
-    ui_pitch_plot: UiFunctionEdit,
-    ui_volume_plot: UiFunctionEdit,
+    ui_pitch_plot: UiPlotEdit,
+    ui_volume_plot: UiPlotEdit,
     plot_link: PlotLink<PlotVariant>,
 }
 

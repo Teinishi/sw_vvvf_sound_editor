@@ -5,12 +5,12 @@ use egui_plot::{
 };
 
 #[derive(Debug, Default)]
-pub struct UiFunctionEdit {
+pub struct UiPlotEdit {
     dragging_point: Option<(usize, (f64, f64), Pos2)>,
     last_pointer_button_down: bool,
 }
 
-impl UiFunctionEdit {
+impl UiPlotEdit {
     pub fn ui(
         &mut self,
         ui: &mut egui::Ui,
