@@ -1,5 +1,6 @@
 use super::{UiFunctionEdit, aixs_hint_formatter_percentage};
 use crate::state::State;
+use egui::Sides;
 use egui_plot::{AxisHints, Plot};
 use std::{collections::HashMap, hash::Hash, ops::RangeInclusive};
 
@@ -25,20 +26,16 @@ impl<K: Hash> Default for PlotLink<K> {
 impl<K: Hash> PlotLink<K> {
     fn new_x() -> Self {
         Self {
-            last_bound: HashMap::new(),
-            priority: None,
-            enable_x: true,
             enable_y: false,
+            ..Default::default()
         }
     }
 
     #[expect(unused)]
     fn new_y() -> Self {
         Self {
-            last_bound: HashMap::new(),
-            priority: None,
             enable_x: false,
-            enable_y: true,
+            ..Default::default()
         }
     }
 
@@ -50,7 +47,7 @@ impl<K: Hash> PlotLink<K> {
         let mut range_x = b.range_x();
         let mut range_y = b.range_y();
 
-        if let Some(last) = self.last_bound.get(&variant) {
+        if let Some(last) = &self.last_bound.get(&variant) {
             let changed_x = self.enable_x && last.0 != range_x;
             let changed_y = self.enable_y && last.1 != range_y;
             if changed_x || changed_y {
@@ -103,6 +100,15 @@ impl UiPitchVolumePlots {
         let height = ui.available_height();
 
         let mut selection = state.selection.clone();
+        let mut reset_viewport = false;
+
+        Sides::new().show(
+            ui,
+            |_| {},
+            |ui| {
+                reset_viewport = ui.button("Reset viewport").clicked();
+            },
+        );
 
         self.ui_pitch_plot.ui(
             ui,
@@ -119,7 +125,11 @@ impl UiPitchVolumePlots {
                     .height(height / 2.0 - 18.0)
             },
             |plot_ui: &mut egui_plot::PlotUi<'_>| {
-                self.plot_link.update(plot_ui, PlotVariant::Pitch);
+                if reset_viewport {
+                    plot_ui.set_auto_bounds(true);
+                } else {
+                    self.plot_link.update(plot_ui, PlotVariant::Pitch);
+                }
             },
         );
 
@@ -142,7 +152,11 @@ impl UiPitchVolumePlots {
                     ])
             },
             |plot_ui: &mut egui_plot::PlotUi<'_>| {
-                self.plot_link.update(plot_ui, PlotVariant::Volume);
+                if reset_viewport {
+                    plot_ui.set_auto_bounds(true);
+                } else {
+                    self.plot_link.update(plot_ui, PlotVariant::Volume);
+                }
             },
         );
 
