@@ -1,8 +1,11 @@
 use std::path::PathBuf;
 
+use crate::ui::PlotAutoColor;
+
 #[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
 pub struct State {
     pub audio_entries: Vec<AudioEntry>,
+    pub selection: Option<AudioEntryId>,
 }
 
 impl State {
@@ -31,7 +34,29 @@ impl State {
     pub fn clear_entries(&mut self) {
         self.audio_entries.clear();
     }
+
+    pub fn volume_entries_mut(
+        &mut self,
+    ) -> Vec<(AudioEntryId, egui::Color32, &mut EditableFunction)> {
+        self.audio_entries
+            .iter_mut()
+            .enumerate()
+            .map(|(i, e)| (e.identifier(), PlotAutoColor::get_color(i), e.volume_mut()))
+            .collect()
+    }
+
+    pub fn pitch_entries_mut(
+        &mut self,
+    ) -> Vec<(AudioEntryId, egui::Color32, &mut EditableFunction)> {
+        self.audio_entries
+            .iter_mut()
+            .enumerate()
+            .map(|(i, e)| (e.identifier(), PlotAutoColor::get_color(i), e.pitch_mut()))
+            .collect()
+    }
 }
+
+pub type AudioEntryId = PathBuf;
 
 #[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
 pub struct AudioEntry {
@@ -55,6 +80,10 @@ impl AudioEntry {
         }
     }
 
+    pub fn identifier(&self) -> PathBuf {
+        self.path.clone()
+    }
+
     pub fn path(&self) -> &PathBuf {
         &self.path
     }
@@ -67,28 +96,12 @@ impl AudioEntry {
             .map(String::from)
     }
 
-    pub fn volume(&self) -> &EditableFunction {
-        &self.volume_function
-    }
-
-    pub fn pitch(&self) -> &EditableFunction {
-        &self.pitch_function
-    }
-
     pub fn volume_mut(&mut self) -> &mut EditableFunction {
         &mut self.volume_function
     }
 
     pub fn pitch_mut(&mut self) -> &mut EditableFunction {
         &mut self.pitch_function
-    }
-
-    pub fn volume_at(&self, x: f64) -> f64 {
-        self.volume_function.value_at(x)
-    }
-
-    pub fn pitch_at(&self, x: f64) -> f64 {
-        self.pitch_function.value_at(x)
     }
 }
 
