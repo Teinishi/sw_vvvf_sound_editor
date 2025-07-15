@@ -1,4 +1,4 @@
-use egui::{Button, DragValue, Layout, vec2};
+use egui::{Button, DragValue, Label, RichText, vec2};
 
 use crate::{
     state::{AudioEntry, AudioEntryId, EditableFunction},
@@ -25,19 +25,37 @@ impl UiPointEdit {
             .as_ref()
             .and_then(|path| entries.iter_mut().find(|e| e.path() == path))
         {
-            ui.strong("Pitch");
-            Self::ui_points(ui, entry.pitch_mut());
+            ui.horizontal(|ui| {
+                ui.add_sized(
+                    vec2(60.0, 16.0),
+                    Label::new(RichText::new("Speed").strong()),
+                );
+                ui.add_sized(
+                    vec2(60.0, 16.0),
+                    Label::new(RichText::new("Pitch").strong()),
+                );
+            });
+            Self::ui_points(ui, entry.pitch_mut(), false);
 
             ui.separator();
 
-            ui.strong("Volume");
-            Self::ui_points(ui, entry.volume_mut());
+            ui.horizontal(|ui| {
+                ui.add_sized(
+                    vec2(60.0, 16.0),
+                    Label::new(RichText::new("Speed").strong()),
+                );
+                ui.add_sized(
+                    vec2(60.0, 16.0),
+                    Label::new(RichText::new("Volume").strong()),
+                );
+            });
+            Self::ui_points(ui, entry.volume_mut(), true);
 
-            ui.with_layout(Layout::bottom_up(egui::Align::Min), |ui| {
+            /*ui.with_layout(Layout::bottom_up(egui::Align::Min), |ui| {
                 if let Some(path) = entry.path().to_str() {
                     ui.weak(path);
                 }
-            });
+            });*/
         }
     }
 
@@ -78,7 +96,7 @@ impl UiPointEdit {
         }
     }
 
-    fn ui_points(ui: &mut egui::Ui, func: &mut EditableFunction) {
+    fn ui_points(ui: &mut egui::Ui, func: &mut EditableFunction, is_y_percentage: bool) {
         let mut changed = None;
 
         for (i, point) in func.points().iter().enumerate() {
@@ -86,13 +104,17 @@ impl UiPointEdit {
             let mut y = point.1;
 
             ui.horizontal(|ui| {
-                let x_changed = ui
-                    .add_sized(vec2(60.0, 20.0), DragValue::new(&mut x).speed(0.1))
-                    .changed();
-                let y_changed = ui
-                    .add_sized(vec2(60.0, 20.0), DragValue::new(&mut y).speed(0.01))
-                    .changed();
-                if x_changed || y_changed {
+                let drag_x = DragValue::new(&mut x).speed(0.1).max_decimals(1);
+                let mut drag_y = DragValue::new(&mut y).speed(0.01).max_decimals(3);
+                if is_y_percentage {
+                    drag_y = drag_y
+                        .custom_formatter(|x, _| format!("{:.1}", 100.0 * x))
+                        .custom_parser(|s| s.parse().ok().map(|v: f64| v / 100.0))
+                        .suffix("%");
+                }
+                let changed_x = ui.add_sized(vec2(60.0, 20.0), drag_x).changed();
+                let changed_y = ui.add_sized(vec2(60.0, 20.0), drag_y).changed();
+                if changed_x || changed_y {
                     changed = Some((i, (x, y)));
                 }
             });

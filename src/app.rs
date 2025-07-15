@@ -111,6 +111,7 @@ impl eframe::App for MainApp {
             SidePanel::left("audio_file_panel")
                 .frame(Frame::side_top_panel(&ctx.style()).inner_margin(8.0))
                 .default_width(200.0)
+                .min_width(120.0)
                 .resizable(true)
                 .show(ctx, |ui| {
                     ui.style_mut().spacing.item_spacing = vec2(8.0, 8.0);
@@ -121,7 +122,8 @@ impl eframe::App for MainApp {
         if self.show_point_edit_panel {
             SidePanel::left("point_edit_panel")
                 .frame(Frame::side_top_panel(&ctx.style()).inner_margin(8.0))
-                .default_width(200.0)
+                .default_width(144.0)
+                .min_width(144.0)
                 .resizable(true)
                 .show(ctx, |ui| {
                     ui.style_mut().spacing.item_spacing = vec2(8.0, 8.0);
