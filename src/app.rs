@@ -2,15 +2,27 @@ use crate::{
     state::State,
     ui::{UiAudioFiles, UiPitchVolumePlots},
 };
-use egui_extras::{Size, StripBuilder};
+use egui::{CentralPanel, Frame, MenuBar, SidePanel, Sides, TopBottomPanel, vec2};
 
-#[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct MainApp {
     state: State,
+    show_audio_files_panel: bool,
     #[serde(skip)]
     ui_audio_files: UiAudioFiles,
     #[serde(skip)]
     ui_pitch_volume_plots: UiPitchVolumePlots,
+}
+
+impl Default for MainApp {
+    fn default() -> Self {
+        Self {
+            state: State::default(),
+            show_audio_files_panel: true,
+            ui_audio_files: UiAudioFiles,
+            ui_pitch_volume_plots: UiPitchVolumePlots::default(),
+        }
+    }
 }
 
 impl MainApp {
@@ -54,19 +66,28 @@ impl eframe::App for MainApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        egui::TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            egui::MenuBar::new().ui(ui, |ui| {
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    ui.menu_button("File", |ui| {
-                        if ui.button("Quit").clicked() {
-                            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        TopBottomPanel::top("top_panel").show(ctx, |ui| {
+            MenuBar::new().ui(ui, |ui| {
+                Sides::new().show(
+                    ui,
+                    |ui| {
+                        #[cfg(not(target_arch = "wasm32"))]
+                        {
+                            ui.menu_button("File", |ui| {
+                                if ui.button("Quit").clicked() {
+                                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                                }
+                            });
                         }
-                    });
-                    ui.add_space(16.0);
-                }
 
-                egui::widgets::global_theme_preference_buttons(ui);
+                        ui.separator();
+
+                        ui.toggle_value(&mut self.show_audio_files_panel, "Audio Files");
+                    },
+                    |ui| {
+                        egui::widgets::global_theme_preference_buttons(ui);
+                    },
+                )
             });
         });
 
@@ -80,19 +101,22 @@ impl eframe::App for MainApp {
             }
         }*/
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            StripBuilder::new(ui)
-                .size(Size::exact(200.0))
-                .size(Size::remainder())
-                .horizontal(|mut strip| {
-                    strip.cell(|ui| {
-                        self.ui_audio_files.ui(ui, Some(frame), &mut self.state);
-                    });
-
-                    strip.cell(|ui| {
-                        self.ui_pitch_volume_plots.ui(ui, &mut self.state);
-                    });
+        if self.show_audio_files_panel {
+            SidePanel::left("audio_file_panel")
+                .frame(Frame::side_top_panel(&ctx.style()).inner_margin(8.0))
+                .default_width(200.0)
+                .resizable(true)
+                .show(ctx, |ui| {
+                    ui.style_mut().spacing.item_spacing = vec2(8.0, 8.0);
+                    self.ui_audio_files.ui(ui, Some(frame), &mut self.state);
                 });
-        });
+        }
+
+        CentralPanel::default()
+            .frame(Frame::central_panel(&ctx.style()).inner_margin(8.0))
+            .show(ctx, |ui| {
+                ui.style_mut().spacing.item_spacing = vec2(8.0, 8.0);
+                self.ui_pitch_volume_plots.ui(ui, &mut self.state);
+            });
     }
 }

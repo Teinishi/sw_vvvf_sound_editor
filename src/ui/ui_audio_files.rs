@@ -14,15 +14,13 @@ impl UiAudioFiles {
     pub fn ui(&self, ui: &mut egui::Ui, frame: Option<&eframe::Frame>, state: &mut State) {
         let mut dnd_from_to: Option<(DndLocation, DndLocation)> = None;
 
+        ui.strong("Audio Files");
+
         StripBuilder::new(ui)
-            .sizes(Size::exact(20.0), 2)
+            .size(Size::exact(20.0))
             .size(Size::remainder())
             .size(Size::exact(20.0))
             .vertical(|mut strip| {
-                strip.cell(|ui| {
-                    ui.label("Audio Files");
-                });
-
                 strip.cell(|ui| {
                     if ui
                         .add_sized(ui.available_size(), Button::new("Add"))
