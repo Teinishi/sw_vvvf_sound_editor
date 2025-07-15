@@ -119,7 +119,6 @@ impl UiPitchVolumePlots {
                     .height(height / 2.0 - 18.0)
             },
             |plot_ui: &mut egui_plot::PlotUi<'_>| {
-                println!("pitch {:?}", plot_ui.response().rect.height());
                 self.plot_link.update(plot_ui, PlotVariant::Pitch);
             },
         );
@@ -143,7 +142,6 @@ impl UiPitchVolumePlots {
                     ])
             },
             |plot_ui: &mut egui_plot::PlotUi<'_>| {
-                println!("volume {:?}", plot_ui.response().rect.height());
                 self.plot_link.update(plot_ui, PlotVariant::Volume);
             },
         );

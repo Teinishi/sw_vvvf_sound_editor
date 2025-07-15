@@ -1,6 +1,8 @@
 use crate::state::{AudioEntryId, EditableFunction};
-use egui::{Id, Pos2, Response};
-use egui_plot::{GridMark, Line, Plot, PlotPoint, PlotPoints, Points};
+use egui::{Id, Pos2, Rangef, Response};
+use egui_plot::{
+    GridInput, GridMark, Line, Plot, PlotPoint, PlotPoints, PlotUi, Points, log_grid_spacer,
+};
 
 #[derive(Debug, Default)]
 pub struct UiFunctionEdit {
@@ -17,15 +19,18 @@ impl UiFunctionEdit {
         init_plot: impl FnOnce() -> Plot<'static>,
         inside_plot: impl FnOnce(&mut egui_plot::PlotUi<'_>),
     ) {
-        let plot = init_plot()
-            .allow_drag(false)
-            .allow_double_click_reset(false);
+        let grid_data = PlotGridData::default();
+        let plot = grid_data.apply(
+            init_plot()
+                .allow_drag(false)
+                .allow_double_click_reset(false),
+        );
 
         if selection.is_none() {
             self.dragging_point = None;
         }
         let plot_response = plot.show(ui, |plot_ui| {
-            self.plot_content(plot_ui, entries, selection);
+            self.plot_content(plot_ui, entries, selection, &grid_data);
             Self::plot_drag(plot_ui, self.dragging_point.is_none());
             inside_plot(plot_ui);
             plot_ui.pointer_coordinate()
@@ -62,6 +67,7 @@ impl UiFunctionEdit {
         plot_ui: &mut egui_plot::PlotUi<'a>,
         entries: &'a mut [(AudioEntryId, egui::Color32, &mut EditableFunction)],
         selection: &Option<AudioEntryId>,
+        grid_data: &PlotGridData,
     ) {
         let marker_radius: f32 = 8.0;
         let response = plot_ui.response();
@@ -96,7 +102,7 @@ impl UiFunctionEdit {
                 }
 
                 // ドラッグ移動反映
-                self.point_drag(plot_ui, func);
+                self.point_drag(plot_ui, func, grid_data);
 
                 // 点を削除
                 if let Some(index) = remove_point_index {
@@ -141,22 +147,38 @@ impl UiFunctionEdit {
         mouse_down_now
     }
 
-    fn point_drag(&self, plot_ui: &egui_plot::PlotUi<'_>, func: &mut EditableFunction) {
+    fn point_drag(
+        &self,
+        plot_ui: &egui_plot::PlotUi<'_>,
+        func: &mut EditableFunction,
+        grid_data: &PlotGridData,
+    ) {
         // 点のドラッグ処理
         if let (Some((index, start_val, pointer_start_pos)), Some(pointer_current_pos)) = (
             self.dragging_point,
             plot_ui.response().interact_pointer_pos(),
         ) {
             let mut val = plot_ui.plot_from_screen(pointer_current_pos);
-            let shift = plot_ui.ctx().input(|input| input.modifiers.shift_only());
+            let (shift, ctrl) = plot_ui
+                .ctx()
+                .input(|input| (input.modifiers.shift_only(), input.modifiers.command_only()));
             if shift {
-                // 縦横スナップ
+                // Shiftキーで縦横スナップ
                 if (pointer_current_pos.x - pointer_start_pos.x).abs()
                     < (pointer_current_pos.y - pointer_start_pos.y).abs()
                 {
                     val.x = start_val.0;
                 } else {
                     val.y = start_val.1;
+                }
+            } else if ctrl {
+                // Ctrlキーでグリッドにスナップ
+                if let Some(snap) = plot_ui
+                    .pointer_coordinate()
+                    .and_then(|point| grid_data.nearest_point(plot_ui, (point.x, point.y)))
+                {
+                    val.x = snap.0;
+                    val.y = snap.1;
                 }
             }
             func.move_point_to(index, (val.x, val.y));
@@ -203,4 +225,62 @@ pub fn aixs_hint_formatter_percentage(mark: GridMark, _: &std::ops::RangeInclusi
 
 fn is_approx_integer(val: f64) -> bool {
     val.fract().abs() < 1e-6
+}
+
+struct PlotGridData {
+    x_spacer: Box<dyn Fn(GridInput) -> Vec<GridMark>>,
+    y_spacer: Box<dyn Fn(GridInput) -> Vec<GridMark>>,
+    spacing: Rangef,
+}
+
+impl Default for PlotGridData {
+    fn default() -> Self {
+        Self {
+            x_spacer: Box::new(log_grid_spacer(10)),
+            y_spacer: Box::new(log_grid_spacer(10)),
+            spacing: Rangef::new(8.0, 300.0),
+        }
+    }
+}
+
+impl PlotGridData {
+    fn apply<'a>(&'a self, plot: Plot<'a>) -> Plot<'a> {
+        plot.x_grid_spacer(&self.x_spacer)
+            .y_grid_spacer(&self.y_spacer)
+            .grid_spacing(self.spacing)
+    }
+
+    fn get_grid(&self, plot_ui: &PlotUi<'_>) -> (Vec<GridMark>, Vec<GridMark>) {
+        let bounds = plot_ui.plot_bounds();
+        let bmin = bounds.min();
+        let bmax = bounds.max();
+        let transform = plot_ui.transform();
+        let grid_x = (self.x_spacer)(GridInput {
+            bounds: (bmin[0], bmax[0]),
+            base_step_size: transform.dvalue_dpos()[0].abs() * self.spacing.min as f64,
+        });
+        let grid_y = (self.x_spacer)(GridInput {
+            bounds: (bmin[1], bmax[1]),
+            base_step_size: transform.dvalue_dpos()[1].abs() * self.spacing.min as f64,
+        });
+        (grid_x, grid_y)
+    }
+
+    fn nearest_point(&self, plot_ui: &PlotUi<'_>, point: (f64, f64)) -> Option<(f64, f64)> {
+        let (x, y) = point;
+        let (grid_x, grid_y) = self.get_grid(plot_ui);
+
+        let cx = grid_x
+            .iter()
+            .map(|g| (g.value, (g.value - x).abs()))
+            .reduce(|a, b| if a.1 < b.1 { a } else { b })
+            .map(|a| a.0);
+        let cy = grid_y
+            .iter()
+            .map(|g| (g.value, (g.value - y).abs()))
+            .reduce(|a, b| if a.1 < b.1 { a } else { b })
+            .map(|a| a.0);
+
+        cx.zip(cy)
+    }
 }
