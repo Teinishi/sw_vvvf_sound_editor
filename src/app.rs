@@ -1,6 +1,6 @@
 use crate::{
     state::State,
-    ui::{UiAudioFiles, UiPitchVolumePlots, UiPointEdit},
+    ui::{UiAudioFiles, UiConfig, UiPitchVolumePlots, UiPointEdit},
 };
 use egui::{CentralPanel, Frame, MenuBar, SidePanel, Sides, TopBottomPanel, vec2};
 
@@ -9,10 +9,13 @@ pub struct MainApp {
     state: State,
     show_audio_files_panel: bool,
     show_point_edit_panel: bool,
+    show_config_panel: bool,
     #[serde(skip)]
     ui_audio_files: UiAudioFiles,
     #[serde(skip)]
     ui_point_edit: UiPointEdit,
+    #[serde(skip)]
+    ui_config: UiConfig,
     #[serde(skip)]
     ui_pitch_volume_plots: UiPitchVolumePlots,
 }
@@ -23,8 +26,10 @@ impl Default for MainApp {
             state: State::default(),
             show_audio_files_panel: true,
             show_point_edit_panel: true,
+            show_config_panel: false,
             ui_audio_files: UiAudioFiles,
             ui_point_edit: UiPointEdit,
+            ui_config: UiConfig,
             ui_pitch_volume_plots: UiPitchVolumePlots::default(),
         }
     }
@@ -92,6 +97,10 @@ impl eframe::App for MainApp {
                     },
                     |ui| {
                         egui::widgets::global_theme_preference_buttons(ui);
+
+                        ui.separator();
+
+                        ui.toggle_value(&mut self.show_config_panel, "Config");
                     },
                 )
             });
@@ -132,6 +141,17 @@ impl eframe::App for MainApp {
                         &mut self.state.audio_entries,
                         &mut self.state.selection,
                     );
+                });
+        }
+
+        if self.show_config_panel {
+            SidePanel::right("config_panel")
+                .frame(Frame::side_top_panel(&ctx.style()).inner_margin(8.0))
+                .default_width(200.0)
+                .min_width(120.0)
+                .resizable(true)
+                .show(ctx, |ui| {
+                    self.ui_config.ui(ui, &mut self.state);
                 });
         }
 

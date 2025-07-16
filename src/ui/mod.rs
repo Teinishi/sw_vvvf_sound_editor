@@ -8,3 +8,5 @@ mod ui_plot_edit;
 pub use ui_plot_edit::{UiPlotEdit, aixs_hint_formatter_percentage};
 mod ui_pitch_volume_plot;
 pub use ui_pitch_volume_plot::UiPitchVolumePlots;
+mod ui_config;
+pub use ui_config::UiConfig;
