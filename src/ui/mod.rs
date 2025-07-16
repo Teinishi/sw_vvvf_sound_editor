@@ -10,3 +10,5 @@ mod ui_pitch_volume_plot;
 pub use ui_pitch_volume_plot::UiPitchVolumePlots;
 mod ui_config;
 pub use ui_config::UiConfig;
+mod ui_about;
+pub use ui_about::ui_about_rev;
