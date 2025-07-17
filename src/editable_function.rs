@@ -100,6 +100,28 @@ impl EditableFunction {
             .insert(self.find_segment(point.0), self.bounds.clamp(point));
     }
 
+    pub fn insert_point_by_index(&mut self, index: usize) {
+        if index == 0 {
+            if let Some(p) = self.points.first_chunk::<2>() {
+                let x0 = p[0].0;
+                let x1 = p[1].0;
+                self.split_segment(x0 - (x1 - x0));
+            } else if let Some(p) = self.points.first() {
+                self.split_segment(p.0 - p.0.abs() * 0.2);
+            }
+        } else if index >= self.points.len() {
+            if let Some(p) = self.points.last_chunk::<2>() {
+                let x0 = p[0].0;
+                let x1 = p[1].0;
+                self.split_segment(x0 + 2.0 * (x1 - x0));
+            } else if let Some(p) = self.points.last() {
+                self.split_segment(p.0 + p.0.abs() * 0.2);
+            }
+        } else if let (Some(p0), Some(p1)) = (self.points.get(index - 1), self.points.get(index)) {
+            self.split_segment((p0.0 + p1.0) / 2.0);
+        }
+    }
+
     pub fn split_segment(&mut self, x: f64) {
         self.insert_point((x, self.value_at(x)));
     }

@@ -3,7 +3,7 @@ use crate::{
     state::{AudioEntry, AudioEntryId},
     ui::{PlotAutoColor, UiFunctionEdit},
 };
-use egui::{Button, Label, RichText, vec2};
+use egui::Button;
 
 #[derive(Debug, Default)]
 pub struct UiPitchVolumeEdit;
@@ -26,36 +26,17 @@ impl UiPitchVolumeEdit {
             .as_ref()
             .and_then(|path| entries.iter_mut().find(|e| e.path() == path))
         {
-            ui.horizontal(|ui| {
-                ui.add_sized(
-                    vec2(60.0, 16.0),
-                    Label::new(RichText::new("Speed").strong()),
-                );
-                ui.add_sized(
-                    vec2(60.0, 16.0),
-                    Label::new(RichText::new("Pitch").strong()),
-                );
+            ui.push_id("pitch", |ui| {
+                UiFunctionEdit::new("Pitch", ("Speed", "Pitch")).ui(ui, entry.pitch_mut());
             });
-            UiFunctionEdit::default().ui(ui, ui.id().with("pitch"), "Pitch", entry.pitch_mut());
 
             ui.separator();
 
-            ui.horizontal(|ui| {
-                ui.add_sized(
-                    vec2(60.0, 16.0),
-                    Label::new(RichText::new("Speed").strong()),
-                );
-                ui.add_sized(
-                    vec2(60.0, 16.0),
-                    Label::new(RichText::new("Volume").strong()),
-                );
+            ui.push_id("volume", |ui| {
+                UiFunctionEdit::new("Volume", ("Speed", "Volume"))
+                    .y_percentage(true)
+                    .ui(ui, entry.volume_mut());
             });
-            UiFunctionEdit::new((false, true)).ui(
-                ui,
-                ui.id().with("volume"),
-                "Volume",
-                entry.volume_mut(),
-            );
 
             // コメント外してファイルパスを表示
             /* ui.with_layout(Layout::bottom_up(egui::Align::Min), |ui| {

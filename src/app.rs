@@ -3,7 +3,7 @@ use crate::{
     ui::{UiAudioFiles, UiConfig, UiMenuBar, UiPitchVolumeEdit, UiPitchVolumePlots},
 };
 use egui::{
-    CentralPanel, Frame, Key, KeyboardShortcut, Modifiers, SidePanel, TopBottomPanel,
+    CentralPanel, Frame, Key, KeyboardShortcut, Modifiers, ScrollArea, SidePanel, TopBottomPanel,
     util::undoer::Undoer, vec2,
 };
 
@@ -130,13 +130,15 @@ impl eframe::App for MainApp {
                 .min_width(144.0)
                 .resizable(true)
                 .show(ctx, |ui| {
-                    ui.style_mut().spacing.item_spacing = vec2(8.0, 8.0);
-                    self.ui_point_edit.ui(
-                        ui,
-                        &mut action,
-                        &mut self.state.audio_entries,
-                        &mut self.state.selection,
-                    );
+                    ScrollArea::vertical().show(ui, |ui| {
+                        ui.style_mut().spacing.item_spacing = vec2(8.0, 8.0);
+                        self.ui_point_edit.ui(
+                            ui,
+                            &mut action,
+                            &mut self.state.audio_entries,
+                            &mut self.state.selection,
+                        );
+                    });
                 });
         }
 
