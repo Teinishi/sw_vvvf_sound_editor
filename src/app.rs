@@ -126,8 +126,8 @@ impl eframe::App for MainApp {
         if self.show_point_edit_panel {
             SidePanel::left("point_edit_panel")
                 .frame(Frame::side_top_panel(&ctx.style()).inner_margin(8.0))
-                .default_width(144.0)
-                .min_width(144.0)
+                .default_width(190.0)
+                .min_width(190.0)
                 .resizable(true)
                 .show(ctx, |ui| {
                     ScrollArea::vertical().show(ui, |ui| {
