@@ -1,6 +1,6 @@
 use crate::{
     app::AppAction,
-    ui::{UiAudioFiles, UiPitchVolumeEdit, UiSettingWindow},
+    ui::{UiAudioFiles, UiPerformanceWindow, UiPitchVolumeEdit, UiSettingWindow},
 };
 use egui::{Button, MenuBar, Sides};
 
@@ -15,7 +15,8 @@ impl UiMenuBar {
         action: &mut AppAction,
         show_audio_files_panel: &mut bool,
         show_point_edit_panel: &mut bool,
-        show_config_panel: &mut bool,
+        show_performance_window: &mut bool,
+        show_setting_window: &mut bool,
     ) {
         MenuBar::new().ui(ui, |ui| {
             Sides::new().show(
@@ -49,9 +50,10 @@ impl UiMenuBar {
 
                     ui.toggle_value(show_audio_files_panel, UiAudioFiles::TITLE);
                     ui.toggle_value(show_point_edit_panel, UiPitchVolumeEdit::TITLE);
+                    ui.toggle_value(show_performance_window, UiPerformanceWindow::TITLE);
                 },
                 |ui| {
-                    ui.toggle_value(show_config_panel, UiSettingWindow::TITLE);
+                    ui.toggle_value(show_setting_window, UiSettingWindow::TITLE);
                 },
             )
         });

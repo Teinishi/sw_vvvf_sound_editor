@@ -1,6 +1,9 @@
 use crate::{
     state::State,
-    ui::{UiAudioFiles, UiMenuBar, UiPitchVolumeEdit, UiPitchVolumePlots, UiSettingWindow},
+    ui::{
+        UiAudioFiles, UiMenuBar, UiPerformanceWindow, UiPitchVolumeEdit, UiPitchVolumePlots,
+        UiSettingWindow,
+    },
 };
 use egui::{
     CentralPanel, Frame, Key, KeyboardShortcut, Modifiers, ScrollArea, SidePanel, TopBottomPanel,
@@ -14,7 +17,8 @@ pub struct MainApp {
     state: State,
     show_audio_files_panel: bool,
     show_point_edit_panel: bool,
-    show_config_window: bool,
+    show_performance_window: bool,
+    show_setting_window: bool,
     #[serde(skip)]
     ui_menu_bar: UiMenuBar,
     #[serde(skip)]
@@ -23,6 +27,8 @@ pub struct MainApp {
     ui_point_edit: UiPitchVolumeEdit,
     #[serde(skip)]
     ui_pitch_volume_plots: UiPitchVolumePlots,
+    #[serde(skip)]
+    ui_performance_window: UiPerformanceWindow,
     #[serde(skip)]
     ui_config_window: UiSettingWindow,
 }
@@ -37,11 +43,13 @@ impl Default for MainApp {
             state: State::default(),
             show_audio_files_panel: true,
             show_point_edit_panel: true,
-            show_config_window: false,
+            show_performance_window: false,
+            show_setting_window: false,
             ui_menu_bar: UiMenuBar,
             ui_audio_files: UiAudioFiles,
             ui_point_edit: UiPitchVolumeEdit,
             ui_pitch_volume_plots: UiPitchVolumePlots::default(),
+            ui_performance_window: UiPerformanceWindow,
             ui_config_window: UiSettingWindow,
         }
     }
@@ -96,7 +104,8 @@ impl eframe::App for MainApp {
                 &mut action,
                 &mut self.show_audio_files_panel,
                 &mut self.show_point_edit_panel,
-                &mut self.show_config_window,
+                &mut self.show_performance_window,
+                &mut self.show_setting_window,
             );
         });
 
@@ -150,8 +159,10 @@ impl eframe::App for MainApp {
                     .ui(ui, &mut action, &mut self.state);
             });
 
+        self.ui_performance_window
+            .show(ctx, &mut self.show_performance_window);
         self.ui_config_window
-            .show(ctx, &mut self.show_config_window, &mut self.state);
+            .show(ctx, &mut self.show_setting_window, &mut self.state);
 
         action.exec(ctx, &mut self.state, &mut self.undoer);
 
