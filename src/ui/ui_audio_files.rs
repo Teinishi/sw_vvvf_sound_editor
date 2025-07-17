@@ -9,6 +9,8 @@ use egui_extras::{Size, StripBuilder};
 pub struct UiAudioFiles;
 
 impl UiAudioFiles {
+    pub const TITLE: &str = "Audio Files";
+
     #[expect(clippy::unused_self)]
     pub fn ui(
         &self,
@@ -19,7 +21,7 @@ impl UiAudioFiles {
     ) {
         let mut dnd_from_to: Option<(DndLocation, DndLocation)> = None;
 
-        ui.strong("Audio Files");
+        ui.strong(Self::TITLE);
 
         StripBuilder::new(ui)
             .size(Size::exact(20.0))

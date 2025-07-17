@@ -1,4 +1,7 @@
-use crate::app::AppAction;
+use crate::{
+    app::AppAction,
+    ui::{UiAudioFiles, UiPitchVolumeEdit, UiSettingWindow},
+};
 use egui::{Button, MenuBar, Sides};
 
 #[derive(Debug, Default)]
@@ -44,15 +47,11 @@ impl UiMenuBar {
 
                     ui.separator();
 
-                    ui.toggle_value(show_audio_files_panel, "Audio Files");
-                    ui.toggle_value(show_point_edit_panel, "Point Edit");
+                    ui.toggle_value(show_audio_files_panel, UiAudioFiles::TITLE);
+                    ui.toggle_value(show_point_edit_panel, UiPitchVolumeEdit::TITLE);
                 },
                 |ui| {
-                    egui::widgets::global_theme_preference_buttons(ui);
-
-                    ui.separator();
-
-                    ui.toggle_value(show_config_panel, "Config");
+                    ui.toggle_value(show_config_panel, UiSettingWindow::TITLE);
                 },
             )
         });

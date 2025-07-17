@@ -1,6 +1,6 @@
 use crate::{
     state::State,
-    ui::{UiAudioFiles, UiConfig, UiMenuBar, UiPitchVolumeEdit, UiPitchVolumePlots},
+    ui::{UiAudioFiles, UiMenuBar, UiPitchVolumeEdit, UiPitchVolumePlots, UiSettingWindow},
 };
 use egui::{
     CentralPanel, Frame, Key, KeyboardShortcut, Modifiers, ScrollArea, SidePanel, TopBottomPanel,
@@ -14,7 +14,7 @@ pub struct MainApp {
     state: State,
     show_audio_files_panel: bool,
     show_point_edit_panel: bool,
-    show_config_panel: bool,
+    show_config_window: bool,
     #[serde(skip)]
     ui_menu_bar: UiMenuBar,
     #[serde(skip)]
@@ -22,9 +22,9 @@ pub struct MainApp {
     #[serde(skip)]
     ui_point_edit: UiPitchVolumeEdit,
     #[serde(skip)]
-    ui_config: UiConfig,
-    #[serde(skip)]
     ui_pitch_volume_plots: UiPitchVolumePlots,
+    #[serde(skip)]
+    ui_config_window: UiSettingWindow,
 }
 
 impl Default for MainApp {
@@ -37,12 +37,12 @@ impl Default for MainApp {
             state: State::default(),
             show_audio_files_panel: true,
             show_point_edit_panel: true,
-            show_config_panel: false,
+            show_config_window: false,
             ui_menu_bar: UiMenuBar,
             ui_audio_files: UiAudioFiles,
             ui_point_edit: UiPitchVolumeEdit,
-            ui_config: UiConfig,
             ui_pitch_volume_plots: UiPitchVolumePlots::default(),
+            ui_config_window: UiSettingWindow,
         }
     }
 }
@@ -96,7 +96,7 @@ impl eframe::App for MainApp {
                 &mut action,
                 &mut self.show_audio_files_panel,
                 &mut self.show_point_edit_panel,
-                &mut self.show_config_panel,
+                &mut self.show_config_window,
             );
         });
 
@@ -113,7 +113,7 @@ impl eframe::App for MainApp {
         if self.show_audio_files_panel {
             SidePanel::left("audio_file_panel")
                 .frame(Frame::side_top_panel(&ctx.style()).inner_margin(8.0))
-                .default_width(200.0)
+                .default_width(190.0)
                 .min_width(120.0)
                 .resizable(true)
                 .show(ctx, |ui| {
@@ -142,17 +142,6 @@ impl eframe::App for MainApp {
                 });
         }
 
-        if self.show_config_panel {
-            SidePanel::right("config_panel")
-                .frame(Frame::side_top_panel(&ctx.style()).inner_margin(8.0))
-                .default_width(200.0)
-                .min_width(120.0)
-                .resizable(true)
-                .show(ctx, |ui| {
-                    self.ui_config.ui(ui, &mut self.state);
-                });
-        }
-
         CentralPanel::default()
             .frame(Frame::central_panel(&ctx.style()).inner_margin(8.0))
             .show(ctx, |ui| {
@@ -160,6 +149,9 @@ impl eframe::App for MainApp {
                 self.ui_pitch_volume_plots
                     .ui(ui, &mut action, &mut self.state);
             });
+
+        self.ui_config_window
+            .show(ctx, &mut self.show_config_window, &mut self.state);
 
         action.exec(ctx, &mut self.state, &mut self.undoer);
 

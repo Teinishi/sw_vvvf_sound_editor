@@ -3,12 +3,14 @@ use crate::{
     state::{AudioEntry, AudioEntryId},
     ui::{PlotAutoColor, UiFunctionEdit},
 };
-use egui::Button;
+use egui::{Button, Label, vec2};
 
 #[derive(Debug, Default)]
 pub struct UiPitchVolumeEdit;
 
 impl UiPitchVolumeEdit {
+    pub const TITLE: &str = "Point Edit";
+
     #[expect(clippy::unused_self)]
     pub fn ui(
         &self,
@@ -17,7 +19,7 @@ impl UiPitchVolumeEdit {
         entries: &mut [AudioEntry],
         selection: &mut Option<AudioEntryId>,
     ) {
-        ui.strong("Point Edit");
+        ui.strong(Self::TITLE);
         Self::ui_legend(ui, action, entries, selection);
 
         ui.separator();
@@ -57,7 +59,10 @@ impl UiPitchVolumeEdit {
             let color = PlotAutoColor::get_color(index);
 
             ui.horizontal(|ui| {
-                let (_, stroke_rect) = ui.allocate_space(ui.spacing().interact_size);
+                let interact_size = ui.spacing().interact_size;
+                ui.add_sized(vec2(20.0, interact_size.y), Label::new(format!("{index}")));
+
+                let (_, stroke_rect) = ui.allocate_space(interact_size);
                 ui.painter().line_segment(
                     [stroke_rect.left_center(), stroke_rect.right_center()],
                     (4.0, color),
