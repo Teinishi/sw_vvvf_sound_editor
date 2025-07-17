@@ -1,4 +1,4 @@
-use crate::state::{AudioEntryId, EditableFunction};
+use crate::{app::AppAction, editable_function::EditableFunction, state::AudioEntryId};
 use egui::{Id, Pos2, Rangef, Response};
 use egui_plot::{
     GridInput, GridMark, Line, Plot, PlotPoint, PlotPoints, PlotUi, Points, log_grid_spacer,
@@ -14,6 +14,7 @@ impl UiPlotEdit {
     pub fn ui(
         &mut self,
         ui: &mut egui::Ui,
+        action: &mut AppAction,
         entries: &mut [(AudioEntryId, egui::Color32, &mut EditableFunction)],
         selection: &mut Option<AudioEntryId>,
         init_plot: impl FnOnce() -> Plot<'static>,
@@ -30,7 +31,7 @@ impl UiPlotEdit {
             self.dragging_point = None;
         }
         let plot_response = plot.show(ui, |plot_ui| {
-            self.plot_content(plot_ui, entries, selection, &grid_data);
+            self.plot_content(plot_ui, action, entries, selection, &grid_data);
             Self::plot_drag(plot_ui, self.dragging_point.is_none());
             inside_plot(plot_ui);
             plot_ui.pointer_coordinate()
@@ -48,6 +49,7 @@ impl UiPlotEdit {
             if clicked && is_selected {
                 if let Some(pointer) = pointer_coordinate {
                     func.split_segment(pointer.x);
+                    action.add_undo();
                     clicked = false;
                 }
             }
@@ -65,6 +67,7 @@ impl UiPlotEdit {
     fn plot_content<'a>(
         &mut self,
         plot_ui: &mut egui_plot::PlotUi<'a>,
+        action: &mut AppAction,
         entries: &'a mut [(AudioEntryId, egui::Color32, &mut EditableFunction)],
         selection: &Option<AudioEntryId>,
         grid_data: &PlotGridData,
@@ -74,8 +77,11 @@ impl UiPlotEdit {
         let width_usize = response.rect.width().round() as usize;
 
         let mouse_down = self.check_mouse_down(response);
-        if !response.is_pointer_button_down_on() || selection.is_none() {
+        if self.dragging_point.is_some()
+            && (!response.is_pointer_button_down_on() || selection.is_none())
+        {
             self.dragging_point = None;
+            action.add_undo();
         }
 
         let clicked_secondary = response.clicked_by(egui::PointerButton::Secondary);
@@ -107,6 +113,7 @@ impl UiPlotEdit {
                 // 点を削除
                 if let Some(index) = remove_point_index {
                     self.remove_point(index, func);
+                    action.add_undo();
                 }
 
                 // マーカー描画

@@ -1,9 +1,10 @@
-use egui::{Button, DragValue, Label, RichText, vec2};
-
 use crate::{
-    state::{AudioEntry, AudioEntryId, EditableFunction},
+    app::AppAction,
+    editable_function::EditableFunction,
+    state::{AudioEntry, AudioEntryId},
     ui::PlotAutoColor,
 };
+use egui::{Button, DragValue, Label, RichText, vec2};
 
 #[derive(Debug, Default)]
 pub struct UiPointEdit;
@@ -13,11 +14,12 @@ impl UiPointEdit {
     pub fn ui(
         &self,
         ui: &mut egui::Ui,
+        action: &mut AppAction,
         entries: &mut [AudioEntry],
         selection: &mut Option<AudioEntryId>,
     ) {
         ui.strong("Point Edit");
-        Self::ui_legend(ui, entries, selection);
+        Self::ui_legend(ui, action, entries, selection);
 
         ui.separator();
 
@@ -35,7 +37,7 @@ impl UiPointEdit {
                     Label::new(RichText::new("Pitch").strong()),
                 );
             });
-            Self::ui_points(ui, entry.pitch_mut(), false);
+            Self::ui_points(ui, action, entry.pitch_mut(), false);
 
             ui.separator();
 
@@ -49,7 +51,7 @@ impl UiPointEdit {
                     Label::new(RichText::new("Volume").strong()),
                 );
             });
-            Self::ui_points(ui, entry.volume_mut(), true);
+            Self::ui_points(ui, action, entry.volume_mut(), true);
 
             /*ui.with_layout(Layout::bottom_up(egui::Align::Min), |ui| {
                 if let Some(path) = entry.path().to_str() {
@@ -59,7 +61,12 @@ impl UiPointEdit {
         }
     }
 
-    fn ui_legend(ui: &mut egui::Ui, entries: &[AudioEntry], selection: &mut Option<AudioEntryId>) {
+    fn ui_legend(
+        ui: &mut egui::Ui,
+        action: &mut AppAction,
+        entries: &[AudioEntry],
+        selection: &mut Option<AudioEntryId>,
+    ) {
         for (index, entry) in entries.iter().enumerate() {
             let color = PlotAutoColor::get_color(index);
 
@@ -91,12 +98,18 @@ impl UiPointEdit {
                     } else {
                         *selection = Some(entry.path().clone());
                     }
+                    action.add_undo();
                 }
             });
         }
     }
 
-    fn ui_points(ui: &mut egui::Ui, func: &mut EditableFunction, is_y_percentage: bool) {
+    fn ui_points(
+        ui: &mut egui::Ui,
+        action: &mut AppAction,
+        func: &mut EditableFunction,
+        is_y_percentage: bool,
+    ) {
         let mut changed = None;
 
         for (i, point) in func.points().iter().enumerate() {

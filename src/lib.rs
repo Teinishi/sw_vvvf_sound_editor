@@ -2,5 +2,6 @@
 
 mod app;
 pub use app::MainApp;
+mod editable_function;
 mod state;
 mod ui;

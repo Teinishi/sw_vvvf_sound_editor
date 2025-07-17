@@ -1,9 +1,8 @@
-#[cfg(not(target_arch = "wasm32"))]
-use std::path::PathBuf;
-
-use crate::state::{AudioEntry, State};
-use egui::Button;
-use egui::{Id, Label, ScrollArea};
+use crate::{
+    app::AppAction,
+    state::{AudioEntry, State},
+};
+use egui::{Button, Id, Label, ScrollArea};
 use egui_extras::{Size, StripBuilder};
 
 #[derive(Debug, Default)]
@@ -11,7 +10,13 @@ pub struct UiAudioFiles;
 
 impl UiAudioFiles {
     #[expect(clippy::unused_self)]
-    pub fn ui(&self, ui: &mut egui::Ui, frame: Option<&eframe::Frame>, state: &mut State) {
+    pub fn ui(
+        &self,
+        ui: &mut egui::Ui,
+        frame: Option<&eframe::Frame>,
+        action: &mut AppAction,
+        state: &mut State,
+    ) {
         let mut dnd_from_to: Option<(DndLocation, DndLocation)> = None;
 
         ui.strong("Audio Files");
@@ -86,6 +91,7 @@ impl UiAudioFiles {
                     state.remove_entry(from_idx);
                 }
             }
+            action.add_undo();
         }
     }
 }
@@ -172,7 +178,7 @@ fn add_audio_file_dialog<
     W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle,
 >(
     parent: Option<&W>,
-) -> Option<Vec<PathBuf>> {
+) -> Option<Vec<std::path::PathBuf>> {
     let mut dialog = rfd::FileDialog::new();
     if let Some(p) = parent {
         dialog = dialog.set_parent(p);
