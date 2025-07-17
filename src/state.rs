@@ -64,11 +64,11 @@ impl AudioEntry {
     pub fn new(path: PathBuf) -> Self {
         Self {
             path,
-            volume_function: EditableFunction::new(
+            volume_function: EditableFunction::with_points(
                 vec![(40.0, 0.5)],
                 Bounds::new(Some(0.0), None, Some(0.0), Some(1.0)),
             ),
-            pitch_function: EditableFunction::new(
+            pitch_function: EditableFunction::with_points(
                 vec![(40.0, 1.0)],
                 Bounds::new(Some(0.0), None, Some(0.0), None),
             ),

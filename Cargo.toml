@@ -28,6 +28,7 @@ rfd = "0.15.3"
 raw-window-handle = "0.6.2"
 egui_extras = "0.32.0"
 egui_plot = "0.33.0"
+meval = "0.2.0"
 
 # native:
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]

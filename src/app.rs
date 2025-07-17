@@ -1,6 +1,6 @@
 use crate::{
     state::State,
-    ui::{UiAudioFiles, UiConfig, UiMenuBar, UiPitchVolumePlots, UiPointEdit},
+    ui::{UiAudioFiles, UiConfig, UiMenuBar, UiPitchVolumeEdit, UiPitchVolumePlots},
 };
 use egui::{
     CentralPanel, Frame, Key, KeyboardShortcut, Modifiers, SidePanel, TopBottomPanel,
@@ -20,7 +20,7 @@ pub struct MainApp {
     #[serde(skip)]
     ui_audio_files: UiAudioFiles,
     #[serde(skip)]
-    ui_point_edit: UiPointEdit,
+    ui_point_edit: UiPitchVolumeEdit,
     #[serde(skip)]
     ui_config: UiConfig,
     #[serde(skip)]
@@ -40,7 +40,7 @@ impl Default for MainApp {
             show_config_panel: false,
             ui_menu_bar: UiMenuBar,
             ui_audio_files: UiAudioFiles,
-            ui_point_edit: UiPointEdit,
+            ui_point_edit: UiPitchVolumeEdit,
             ui_config: UiConfig,
             ui_pitch_volume_plots: UiPitchVolumePlots::default(),
         }

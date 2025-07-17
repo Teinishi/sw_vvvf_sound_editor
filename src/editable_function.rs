@@ -1,58 +1,97 @@
+use std::str::FromStr as _;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
+pub enum EditableFunctionMode {
+    Points,
+    Expression,
+}
+
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct EditableFunction {
+    pub mode: EditableFunctionMode,
     points: Vec<(f64, f64)>,
+    expression_str: String,
+    #[serde(skip)]
+    expression: Option<Result<meval::Expr, meval::Error>>,
     bounds: Bounds,
 }
 
 impl Default for EditableFunction {
     fn default() -> Self {
         Self {
+            mode: EditableFunctionMode::Points,
             points: vec![(0.0, 0.0)],
+            expression_str: String::new(),
+            expression: None,
             bounds: Bounds::default(),
         }
     }
 }
 
 impl EditableFunction {
-    pub fn new(points: Vec<(f64, f64)>, bounds: Bounds) -> Self {
-        Self { points, bounds }
+    pub fn with_points(points: Vec<(f64, f64)>, bounds: Bounds) -> Self {
+        Self {
+            mode: EditableFunctionMode::Points,
+            points,
+            expression_str: String::new(),
+            expression: None,
+            bounds,
+        }
     }
 
     pub fn points(&self) -> &Vec<(f64, f64)> {
         &self.points
     }
 
-    fn find_segment(&self, x: f64) -> usize {
-        let p0 = self.points[0];
-        if x < p0.0 {
-            return 0;
+    pub fn expression(&self) -> &str {
+        &self.expression_str
+    }
+
+    pub fn expression_err(&self) -> Option<&meval::Error> {
+        self.expression.as_ref().and_then(|e| e.as_ref().err())
+    }
+
+    pub fn set_expression(&mut self, expression: &str) {
+        self.mode = EditableFunctionMode::Expression;
+        if expression == self.expression_str {
+            return;
         }
-        for (i, p) in self.points.windows(2).enumerate() {
-            if p[0].0 <= x && x < p[1].0 {
-                return i + 1;
-            }
+        self.expression_str = expression.to_owned();
+        if !expression.is_empty() {
+            self.expression = Some(meval::Expr::from_str(expression));
+        } else {
+            self.expression = None;
         }
-        self.points.len()
     }
 
     pub fn value_at(&self, x: f64) -> f64 {
-        let i = self.find_segment(x);
-        if i == 0 {
-            if let Some(first2) = self.points.first_chunk::<2>() {
-                self.bounds
-                    .clamp_y(Self::value_at_line(first2[0], first2[1], x))
-            } else {
-                self.points.first().map(|p| p.1).unwrap_or(0.0)
+        match self.mode {
+            EditableFunctionMode::Points => {
+                let i = self.find_segment(x);
+                if i == 0 {
+                    if let Some(first2) = self.points.first_chunk::<2>() {
+                        self.bounds
+                            .clamp_y(Self::value_at_line(first2[0], first2[1], x))
+                    } else {
+                        self.points.first().map(|p| p.1).unwrap_or(0.0)
+                    }
+                } else if i >= self.points.len() {
+                    if let Some(last2) = self.points.last_chunk::<2>() {
+                        self.bounds
+                            .clamp_y(Self::value_at_line(last2[0], last2[1], x))
+                    } else {
+                        self.points.last().map(|p| p.1).unwrap_or(0.0)
+                    }
+                } else {
+                    Self::value_at_line(self.points[i - 1], self.points[i], x)
+                }
             }
-        } else if i >= self.points.len() {
-            if let Some(last2) = self.points.last_chunk::<2>() {
-                self.bounds
-                    .clamp_y(Self::value_at_line(last2[0], last2[1], x))
-            } else {
-                self.points.last().map(|p| p.1).unwrap_or(0.0)
-            }
-        } else {
-            Self::value_at_line(self.points[i - 1], self.points[i], x)
+            EditableFunctionMode::Expression => self
+                .expression
+                .as_ref()
+                .and_then(|e| e.as_ref().ok())
+                .and_then(|e| e.eval_with_context(meval::Context::new().var("x", x)).ok())
+                .unwrap_or(f64::NAN),
         }
     }
 
@@ -82,6 +121,19 @@ impl EditableFunction {
         if let Some(point) = self.points.get_mut(index) {
             *point = pos;
         }
+    }
+
+    fn find_segment(&self, x: f64) -> usize {
+        let p0 = self.points[0];
+        if x < p0.0 {
+            return 0;
+        }
+        for (i, p) in self.points.windows(2).enumerate() {
+            if p[0].0 <= x && x < p[1].0 {
+                return i + 1;
+            }
+        }
+        self.points.len()
     }
 
     fn value_at_line(p0: (f64, f64), p1: (f64, f64), x: f64) -> f64 {

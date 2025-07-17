@@ -29,13 +29,13 @@ impl UiMenuBar {
 
                     ui.menu_button("Edit", |ui| {
                         if ui
-                            .add_enabled(action.has_undo(), Button::new("\u{27f2}Undo"))
+                            .add_enabled(action.has_undo(), Button::new("\u{27f2} Undo"))
                             .clicked()
                         {
                             action.undo();
                         }
                         if ui
-                            .add_enabled(action.has_redo(), Button::new("\u{27f3}Redo"))
+                            .add_enabled(action.has_redo(), Button::new("\u{27f3} Redo"))
                             .clicked()
                         {
                             action.redo();

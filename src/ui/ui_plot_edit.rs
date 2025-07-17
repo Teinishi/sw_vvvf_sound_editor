@@ -91,7 +91,11 @@ impl UiPlotEdit {
         for (index, (path, color, func)) in entries.iter_mut().enumerate() {
             let is_selected = selection.as_ref() == Some(path);
 
-            let marker = if is_selected {
+            let marker = if is_selected
+                && matches!(
+                    func.mode,
+                    crate::editable_function::EditableFunctionMode::Points
+                ) {
                 // マーカークリック・ドラッグ
                 for (j, p) in func.points().iter().enumerate() {
                     let screen_pos = plot_ui.screen_from_plot(PlotPoint::new(p.0, p.1));

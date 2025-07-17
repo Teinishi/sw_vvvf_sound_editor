@@ -11,7 +11,7 @@ pub fn ui_about_rev(ui: &mut egui::Ui) {
     });
 
     ui.hyperlink_to(
-        "\u{E624}GitHub repository",
+        "\u{E624} GitHub repository",
         "https://github.com/Teinishi/sw_vvvf_sound_editor",
     );
 
