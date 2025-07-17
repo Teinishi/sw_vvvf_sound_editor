@@ -1,8 +1,7 @@
+use crate::editable_function::{Bounds, EditableFunction};
 use std::path::PathBuf;
 
-use crate::ui::PlotAutoColor;
-
-#[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct State {
     pub audio_entries: Vec<AudioEntry>,
     pub selection: Option<AudioEntryId>,
@@ -37,28 +36,24 @@ impl State {
 
     pub fn volume_entries_mut(
         &mut self,
-    ) -> Vec<(AudioEntryId, egui::Color32, &mut EditableFunction)> {
+    ) -> impl Iterator<Item = (AudioEntryId, &mut EditableFunction)> {
         self.audio_entries
             .iter_mut()
-            .enumerate()
-            .map(|(i, e)| (e.identifier(), PlotAutoColor::get_color(i), e.volume_mut()))
-            .collect()
+            .map(|e| (e.identifier(), e.volume_mut()))
     }
 
     pub fn pitch_entries_mut(
         &mut self,
-    ) -> Vec<(AudioEntryId, egui::Color32, &mut EditableFunction)> {
+    ) -> impl Iterator<Item = (AudioEntryId, &mut EditableFunction)> {
         self.audio_entries
             .iter_mut()
-            .enumerate()
-            .map(|(i, e)| (e.identifier(), PlotAutoColor::get_color(i), e.pitch_mut()))
-            .collect()
+            .map(|e| (e.identifier(), e.pitch_mut()))
     }
 }
 
 pub type AudioEntryId = PathBuf;
 
-#[derive(Debug, Default, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct AudioEntry {
     path: PathBuf,
     volume_function: EditableFunction,
@@ -69,14 +64,14 @@ impl AudioEntry {
     pub fn new(path: PathBuf) -> Self {
         Self {
             path,
-            volume_function: EditableFunction {
-                points: vec![(40.0, 0.5)],
-                bounds: Bounds::new(Some(0.0), None, Some(0.0), Some(1.0)),
-            },
-            pitch_function: EditableFunction {
-                points: vec![(40.0, 1.0)],
-                bounds: Bounds::new(Some(0.0), None, Some(0.0), None),
-            },
+            volume_function: EditableFunction::new(
+                vec![(40.0, 0.5)],
+                Bounds::new(Some(0.0), None, Some(0.0), Some(1.0)),
+            ),
+            pitch_function: EditableFunction::new(
+                vec![(40.0, 1.0)],
+                Bounds::new(Some(0.0), None, Some(0.0), None),
+            ),
         }
     }
 
@@ -102,144 +97,5 @@ impl AudioEntry {
 
     pub fn pitch_mut(&mut self) -> &mut EditableFunction {
         &mut self.pitch_function
-    }
-}
-
-#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
-pub struct EditableFunction {
-    points: Vec<(f64, f64)>,
-    bounds: Bounds,
-}
-
-impl Default for EditableFunction {
-    fn default() -> Self {
-        Self {
-            points: vec![(0.0, 0.0)],
-            bounds: Bounds::default(),
-        }
-    }
-}
-
-impl EditableFunction {
-    pub fn points(&self) -> &Vec<(f64, f64)> {
-        &self.points
-    }
-
-    fn find_segment(&self, x: f64) -> usize {
-        let p0 = self.points[0];
-        if x < p0.0 {
-            return 0;
-        }
-        for (i, p) in self.points.windows(2).enumerate() {
-            if p[0].0 <= x && x < p[1].0 {
-                return i + 1;
-            }
-        }
-        self.points.len()
-    }
-
-    pub fn value_at(&self, x: f64) -> f64 {
-        let i = self.find_segment(x);
-        if i == 0 {
-            if let Some(first2) = self.points.first_chunk::<2>() {
-                self.bounds
-                    .clamp_y(Self::value_at_line(first2[0], first2[1], x))
-            } else {
-                self.points.first().map(|p| p.1).unwrap_or(0.0)
-            }
-        } else if i >= self.points.len() {
-            if let Some(last2) = self.points.last_chunk::<2>() {
-                self.bounds
-                    .clamp_y(Self::value_at_line(last2[0], last2[1], x))
-            } else {
-                self.points.last().map(|p| p.1).unwrap_or(0.0)
-            }
-        } else {
-            Self::value_at_line(self.points[i - 1], self.points[i], x)
-        }
-    }
-
-    pub fn insert_point(&mut self, point: (f64, f64)) {
-        self.points
-            .insert(self.find_segment(point.0), self.bounds.clamp(point));
-    }
-
-    pub fn split_segment(&mut self, x: f64) {
-        self.insert_point((x, self.value_at(x)));
-    }
-
-    pub fn remove_point(&mut self, index: usize) {
-        if self.points.len() >= 2 {
-            self.points.remove(index);
-        }
-    }
-
-    pub fn move_point_to(&mut self, index: usize, mut pos: (f64, f64)) {
-        if let Some(left) = index.checked_sub(1).and_then(|l| self.points.get(l)) {
-            pos.0 = pos.0.max(left.0);
-        }
-        if let Some(right) = index.checked_add(1).and_then(|l| self.points.get(l)) {
-            pos.0 = pos.0.min(right.0);
-        }
-        pos = self.bounds.clamp(pos);
-        if let Some(point) = self.points.get_mut(index) {
-            *point = pos;
-        }
-    }
-
-    fn value_at_line(p0: (f64, f64), p1: (f64, f64), x: f64) -> f64 {
-        let (x0, y0) = p0;
-        let (x1, y1) = p1;
-        if x0 == x1 {
-            if (y1 - y0) * (x - x0) > 0.0 {
-                return f64::INFINITY;
-            } else {
-                return f64::NEG_INFINITY;
-            }
-        }
-        (y1 - y0) / (x1 - x0) * (x - x0) + y0
-    }
-}
-
-#[derive(Debug, Default, Clone, Copy, PartialEq, serde::Deserialize, serde::Serialize)]
-struct Bounds {
-    min_x: Option<f64>,
-    max_x: Option<f64>,
-    min_y: Option<f64>,
-    max_y: Option<f64>,
-}
-
-impl Bounds {
-    fn new(min_x: Option<f64>, max_x: Option<f64>, min_y: Option<f64>, max_y: Option<f64>) -> Self {
-        Self {
-            min_x,
-            max_x,
-            min_y,
-            max_y,
-        }
-    }
-
-    fn clamp_x(&self, mut x: f64) -> f64 {
-        if let Some(max) = self.max_x {
-            x = x.min(max);
-        }
-        if let Some(min) = self.min_x {
-            x = x.max(min);
-        }
-        x
-    }
-
-    fn clamp_y(&self, mut y: f64) -> f64 {
-        if let Some(max) = self.max_y {
-            y = y.min(max);
-        }
-        if let Some(min) = self.min_y {
-            y = y.max(min);
-        }
-        y
-    }
-
-    fn clamp(&self, point: (f64, f64)) -> (f64, f64) {
-        (self.clamp_x(point.0), self.clamp_y(point.1))
     }
 }

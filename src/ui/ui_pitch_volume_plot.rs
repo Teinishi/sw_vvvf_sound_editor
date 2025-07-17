@@ -1,5 +1,10 @@
 use super::{UiPlotEdit, aixs_hint_formatter_percentage};
-use crate::state::State;
+use crate::{
+    app::AppAction,
+    editable_function::EditableFunction,
+    state::{AudioEntryId, State},
+    ui::PlotAutoColor,
+};
 use egui::Sides;
 use egui_plot::{AxisHints, Plot};
 use std::{collections::HashMap, hash::Hash, ops::RangeInclusive};
@@ -96,7 +101,7 @@ impl Default for UiPitchVolumePlots {
 }
 
 impl UiPitchVolumePlots {
-    pub fn ui(&mut self, ui: &mut egui::Ui, state: &mut State) {
+    pub fn ui(&mut self, ui: &mut egui::Ui, action: &mut AppAction, state: &mut State) {
         let height = ui.available_height();
 
         let mut selection = state.selection.clone();
@@ -110,9 +115,15 @@ impl UiPitchVolumePlots {
             },
         );
 
+        let mut pitch_entries: Vec<(AudioEntryId, egui::Color32, &mut EditableFunction)> = state
+            .pitch_entries_mut()
+            .enumerate()
+            .map(|(i, (p, f))| (p, PlotAutoColor::get_color(i), f))
+            .collect();
         self.ui_pitch_plot.ui(
             ui,
-            &mut state.pitch_entries_mut(),
+            action,
+            &mut pitch_entries,
             &mut selection,
             || {
                 Plot::new("plot_edit_volume")
@@ -133,9 +144,15 @@ impl UiPitchVolumePlots {
             },
         );
 
+        let mut volume_entries: Vec<(AudioEntryId, egui::Color32, &mut EditableFunction)> = state
+            .volume_entries_mut()
+            .enumerate()
+            .map(|(i, (p, f))| (p, PlotAutoColor::get_color(i), f))
+            .collect();
         self.ui_volume_plot.ui(
             ui,
-            &mut state.volume_entries_mut(),
+            action,
+            &mut volume_entries,
             &mut selection,
             || {
                 Plot::new("plot_edit_pitch")

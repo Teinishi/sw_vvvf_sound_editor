@@ -1,15 +1,22 @@
 use crate::{
     state::State,
-    ui::{UiAudioFiles, UiConfig, UiPitchVolumePlots, UiPointEdit},
+    ui::{UiAudioFiles, UiConfig, UiMenuBar, UiPitchVolumePlots, UiPointEdit},
 };
-use egui::{CentralPanel, Frame, MenuBar, SidePanel, Sides, TopBottomPanel, vec2};
+use egui::{
+    CentralPanel, Frame, Key, KeyboardShortcut, Modifiers, SidePanel, TopBottomPanel,
+    util::undoer::Undoer, vec2,
+};
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct MainApp {
+    #[serde(skip)]
+    undoer: Undoer<State>,
     state: State,
     show_audio_files_panel: bool,
     show_point_edit_panel: bool,
     show_config_panel: bool,
+    #[serde(skip)]
+    ui_menu_bar: UiMenuBar,
     #[serde(skip)]
     ui_audio_files: UiAudioFiles,
     #[serde(skip)]
@@ -23,10 +30,15 @@ pub struct MainApp {
 impl Default for MainApp {
     fn default() -> Self {
         Self {
+            undoer: Undoer::with_settings(egui::util::undoer::Settings {
+                stable_time: 0.5,
+                ..Default::default()
+            }),
             state: State::default(),
             show_audio_files_panel: true,
             show_point_edit_panel: true,
             show_config_panel: false,
+            ui_menu_bar: UiMenuBar,
             ui_audio_files: UiAudioFiles,
             ui_point_edit: UiPointEdit,
             ui_config: UiConfig,
@@ -76,34 +88,16 @@ impl eframe::App for MainApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        let mut action = AppAction::new(&self.undoer, &self.state);
+
         TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            MenuBar::new().ui(ui, |ui| {
-                Sides::new().show(
-                    ui,
-                    |ui| {
-                        #[cfg(not(target_arch = "wasm32"))]
-                        {
-                            ui.menu_button("File", |ui| {
-                                if ui.button("Quit").clicked() {
-                                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                                }
-                            });
-                        }
-
-                        ui.separator();
-
-                        ui.toggle_value(&mut self.show_audio_files_panel, "Audio Files");
-                        ui.toggle_value(&mut self.show_point_edit_panel, "Point Edit");
-                    },
-                    |ui| {
-                        egui::widgets::global_theme_preference_buttons(ui);
-
-                        ui.separator();
-
-                        ui.toggle_value(&mut self.show_config_panel, "Config");
-                    },
-                )
-            });
+            self.ui_menu_bar.ui(
+                ui,
+                &mut action,
+                &mut self.show_audio_files_panel,
+                &mut self.show_point_edit_panel,
+                &mut self.show_config_panel,
+            );
         });
 
         /*if let Some(path) = &self.work_folder {
@@ -124,7 +118,8 @@ impl eframe::App for MainApp {
                 .resizable(true)
                 .show(ctx, |ui| {
                     ui.style_mut().spacing.item_spacing = vec2(8.0, 8.0);
-                    self.ui_audio_files.ui(ui, Some(frame), &mut self.state);
+                    self.ui_audio_files
+                        .ui(ui, Some(frame), &mut action, &mut self.state);
                 });
         }
 
@@ -138,6 +133,7 @@ impl eframe::App for MainApp {
                     ui.style_mut().spacing.item_spacing = vec2(8.0, 8.0);
                     self.ui_point_edit.ui(
                         ui,
+                        &mut action,
                         &mut self.state.audio_entries,
                         &mut self.state.selection,
                     );
@@ -159,7 +155,89 @@ impl eframe::App for MainApp {
             .frame(Frame::central_panel(&ctx.style()).inner_margin(8.0))
             .show(ctx, |ui| {
                 ui.style_mut().spacing.item_spacing = vec2(8.0, 8.0);
-                self.ui_pitch_volume_plots.ui(ui, &mut self.state);
+                self.ui_pitch_volume_plots
+                    .ui(ui, &mut action, &mut self.state);
             });
+
+        action.exec(ctx, &mut self.state, &mut self.undoer);
+
+        self.undoer.feed_state(ctx.input(|i| i.time), &self.state);
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+pub struct AppAction {
+    has_undo: bool,
+    has_redo: bool,
+
+    close: bool,
+    add_undo: bool,
+    undo: bool,
+    redo: bool,
+}
+
+impl AppAction {
+    fn new<T: Clone + PartialEq>(undoer: &Undoer<T>, state: &T) -> Self {
+        Self {
+            has_undo: undoer.has_undo(state),
+            has_redo: undoer.has_redo(state),
+            ..Default::default()
+        }
+    }
+
+    fn exec<T: Clone + PartialEq>(
+        &self,
+        ctx: &egui::Context,
+        state: &mut T,
+        undoer: &mut Undoer<T>,
+    ) {
+        if self.close {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+        }
+        if self.add_undo {
+            undoer.add_undo(state);
+        }
+        if self.undo
+            || ctx.input_mut(|i| {
+                i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Z))
+            })
+        {
+            if let Some(s) = undoer.undo(state) {
+                *state = s.clone();
+            }
+        }
+        if self.redo
+            || ctx.input_mut(|i| {
+                i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Y))
+            })
+        {
+            if let Some(s) = undoer.redo(state) {
+                *state = s.clone();
+            }
+        }
+    }
+
+    pub fn has_undo(&self) -> bool {
+        self.has_undo
+    }
+
+    pub fn has_redo(&self) -> bool {
+        self.has_redo
+    }
+
+    pub fn close(&mut self) {
+        self.close = true;
+    }
+
+    pub fn add_undo(&mut self) {
+        self.add_undo = true;
+    }
+
+    pub fn undo(&mut self) {
+        self.undo = true;
+    }
+
+    pub fn redo(&mut self) {
+        self.redo = true;
     }
 }

@@ -1,5 +1,7 @@
 mod plot_auto_color;
 pub use plot_auto_color::PlotAutoColor;
+mod ui_menu_bar;
+pub use ui_menu_bar::UiMenuBar;
 mod ui_audio_files;
 pub use ui_audio_files::UiAudioFiles;
 mod ui_point_edit;
