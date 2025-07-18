@@ -115,12 +115,6 @@ impl UiPitchVolumePlots {
         );
 
         let mut cursor = state.speed_cursor.clone();
-        /*let mut pitch_entries: Vec<(&mut EditableFunction, egui::Color32, &String, AudioEntryId)> =
-        state
-            .pitch_entries_mut()
-            .enumerate()
-            .map(|(i, (p, f))| (f, PlotAutoColor::get_color(i), &format!("Pitch {i}"), p))
-            .collect();*/
         self.ui_pitch_plot.ui(
             ui,
             action,
@@ -146,11 +140,6 @@ impl UiPitchVolumePlots {
             },
         );
 
-        /*let mut volume_entries: Vec<(&mut EditableFunction, egui::Color32, AudioEntryId)> = state
-        .volume_entries_mut()
-        .enumerate()
-        .map(|(i, (p, f))| (f, PlotAutoColor::get_color(i), p))
-        .collect();*/
         self.ui_volume_plot.ui(
             ui,
             action,

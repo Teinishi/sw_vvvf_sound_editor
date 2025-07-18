@@ -94,7 +94,7 @@ impl<T> DraggingPoint<T> {
         transform: &PlotTransform,
         pointer_plot_pos: PlotPoint,
         grid_data: &PlotGridData,
-    ) {
+    ) -> bool {
         if matches!(
             func.mode,
             crate::editable_function::EditableFunctionMode::Points
@@ -103,6 +103,9 @@ impl<T> DraggingPoint<T> {
                 self.index,
                 self.get_drag_point_pos(modifiers, transform, pointer_plot_pos, grid_data),
             );
+            true
+        } else {
+            false
         }
     }
 
@@ -190,17 +193,6 @@ impl<T> UiPlotEdit<T> {
             plot_ui.pointer_coordinate()
         });
 
-        /*
-        // 点のドラッグ移動反映
-        self.point_drag(plot_ui, func, grid_data);
-
-        // 点を削除
-        if let Some(index) = remove_point_index {
-            self.remove_point(index, func);
-            action.add_undo();
-        }
-        */
-
         let mut clicked = plot_response.response.clicked();
         for PlotEditEntry {
             func,
@@ -217,13 +209,16 @@ impl<T> UiPlotEdit<T> {
                 (self.dragging_point.as_ref(), pointer_coordinate)
             {
                 if selection.as_ref() == Some(&dragging_point.id) {
-                    dragging_point.drag_point(
+                    let changed = dragging_point.drag_point(
                         func,
                         &ui.ctx().input(|i| i.modifiers),
                         &plot_response.transform,
                         pointer,
                         &grid_data,
                     );
+                    if changed {
+                        action.add_undo();
+                    }
                 }
             }
 
@@ -231,6 +226,7 @@ impl<T> UiPlotEdit<T> {
             if let Some((id, index)) = remove_point.as_ref() {
                 if selection.as_ref() == Some(id) {
                     func.remove_point(*index);
+                    action.add_undo();
                 }
             }
 
