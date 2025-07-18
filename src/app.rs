@@ -163,7 +163,7 @@ impl eframe::App for MainApp {
             ctx,
             &mut self.show_performance_window,
             &mut action,
-            &mut self.state,
+            &mut self.state.train_performance,
         );
         self.ui_config_window
             .show(ctx, &mut self.show_setting_window, &mut self.state);

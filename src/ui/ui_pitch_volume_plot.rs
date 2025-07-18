@@ -1,9 +1,8 @@
 use super::{UiPlotEdit, aixs_hint_formatter_percentage};
 use crate::{
     app::AppAction,
-    editable_function::EditableFunction,
     state::{AudioEntryId, State},
-    ui::PlotAutoColor,
+    ui::ui_plot_edit::PlotEditEntry,
 };
 use egui::Sides;
 use egui_plot::{AxisHints, Plot};
@@ -85,8 +84,8 @@ enum PlotVariant {
 
 #[derive(Debug)]
 pub struct UiPitchVolumePlots {
-    ui_pitch_plot: UiPlotEdit,
-    ui_volume_plot: UiPlotEdit,
+    ui_pitch_plot: UiPlotEdit<AudioEntryId>,
+    ui_volume_plot: UiPlotEdit<AudioEntryId>,
     plot_link: PlotLink<PlotVariant>,
 }
 
@@ -116,15 +115,16 @@ impl UiPitchVolumePlots {
         );
 
         let mut cursor = state.speed_cursor.clone();
-        let mut pitch_entries: Vec<(&mut EditableFunction, egui::Color32, AudioEntryId)> = state
+        /*let mut pitch_entries: Vec<(&mut EditableFunction, egui::Color32, &String, AudioEntryId)> =
+        state
             .pitch_entries_mut()
             .enumerate()
-            .map(|(i, (p, f))| (f, PlotAutoColor::get_color(i), p))
-            .collect();
+            .map(|(i, (p, f))| (f, PlotAutoColor::get_color(i), &format!("Pitch {i}"), p))
+            .collect();*/
         self.ui_pitch_plot.ui(
             ui,
             action,
-            &mut pitch_entries,
+            &mut PlotEditEntry::pitch(&mut state.audio_entries),
             &mut selection,
             &mut Some(&mut cursor),
             || {
@@ -146,15 +146,15 @@ impl UiPitchVolumePlots {
             },
         );
 
-        let mut volume_entries: Vec<(&mut EditableFunction, egui::Color32, AudioEntryId)> = state
-            .volume_entries_mut()
-            .enumerate()
-            .map(|(i, (p, f))| (f, PlotAutoColor::get_color(i), p))
-            .collect();
+        /*let mut volume_entries: Vec<(&mut EditableFunction, egui::Color32, AudioEntryId)> = state
+        .volume_entries_mut()
+        .enumerate()
+        .map(|(i, (p, f))| (f, PlotAutoColor::get_color(i), p))
+        .collect();*/
         self.ui_volume_plot.ui(
             ui,
             action,
-            &mut volume_entries,
+            &mut PlotEditEntry::volume(&mut state.audio_entries),
             &mut selection,
             &mut Some(&mut cursor),
             || {

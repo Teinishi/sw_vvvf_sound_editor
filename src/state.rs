@@ -1,26 +1,12 @@
 use crate::editable_function::{Bounds, EditableFunction};
 use std::path::PathBuf;
 
-#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Default, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct State {
     pub audio_entries: Vec<AudioEntry>,
     pub selection: Option<AudioEntryId>,
-    pub acceleration: EditableFunction,
+    pub train_performance: TrainPerformance,
     pub speed_cursor: Cursor,
-}
-
-impl Default for State {
-    fn default() -> Self {
-        Self {
-            audio_entries: Vec::new(),
-            selection: None,
-            acceleration: EditableFunction::with_expression(
-                "min(2.5,90/x,(80/x)^2)-x/500",
-                Bounds::POSITIVE,
-            ),
-            speed_cursor: Cursor::default(),
-        }
-    }
 }
 
 impl State {
@@ -49,22 +35,6 @@ impl State {
     pub fn clear_entries(&mut self) {
         self.audio_entries.clear();
     }
-
-    pub fn volume_entries_mut(
-        &mut self,
-    ) -> impl Iterator<Item = (AudioEntryId, &mut EditableFunction)> {
-        self.audio_entries
-            .iter_mut()
-            .map(|e| (e.identifier(), e.volume_mut()))
-    }
-
-    pub fn pitch_entries_mut(
-        &mut self,
-    ) -> impl Iterator<Item = (AudioEntryId, &mut EditableFunction)> {
-        self.audio_entries
-            .iter_mut()
-            .map(|e| (e.identifier(), e.pitch_mut()))
-    }
 }
 
 pub type AudioEntryId = PathBuf;
@@ -88,10 +58,6 @@ impl AudioEntry {
         }
     }
 
-    pub fn identifier(&self) -> PathBuf {
-        self.path.clone()
-    }
-
     pub fn path(&self) -> &PathBuf {
         &self.path
     }
@@ -110,6 +76,22 @@ impl AudioEntry {
 
     pub fn pitch_mut(&mut self) -> &mut EditableFunction {
         &mut self.pitch_function
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct TrainPerformance {
+    pub acceleration: EditableFunction,
+}
+
+impl Default for TrainPerformance {
+    fn default() -> Self {
+        Self {
+            acceleration: EditableFunction::with_expression(
+                "min(2.5,90/x,(80/x)^2)-x/500",
+                Bounds::POSITIVE,
+            ),
+        }
     }
 }
 

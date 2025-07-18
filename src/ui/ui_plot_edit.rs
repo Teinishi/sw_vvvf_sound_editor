@@ -1,28 +1,161 @@
-use crate::{app::AppAction, editable_function::EditableFunction, state::Cursor};
-use egui::{Id, Pos2, Rangef, Response, Stroke};
+use crate::{
+    app::AppAction,
+    editable_function::EditableFunction,
+    state::{AudioEntry, AudioEntryId, Cursor},
+    ui::PlotAutoColor,
+};
+use egui::{Id, Modifiers, Pos2, Rangef, Response, Stroke};
 use egui_plot::{
-    GridInput, GridMark, Line, Plot, PlotPoint, PlotPoints, PlotUi, Points, Polygon, VLine,
+    GridInput, GridMark, Line, Plot, PlotPoint, PlotPoints, PlotTransform, Points, Polygon, VLine,
     log_grid_spacer,
 };
 
+#[derive(Debug)]
+pub struct PlotEditEntry<'a, T> {
+    pub func: &'a mut EditableFunction,
+    pub color: egui::Color32,
+    pub name: String,
+    pub id: T,
+}
+
+impl<'a, T> PlotEditEntry<'a, T> {
+    pub fn new(func: &'a mut EditableFunction, color: egui::Color32, name: String, id: T) -> Self {
+        Self {
+            func,
+            color,
+            name,
+            id,
+        }
+    }
+}
+
+impl<'a> PlotEditEntry<'a, AudioEntryId> {
+    pub fn pitch(audio_entries: &'a mut [AudioEntry]) -> Vec<Self> {
+        audio_entries
+            .iter_mut()
+            .enumerate()
+            .map(|(i, e)| {
+                let id = e.path().clone();
+                Self {
+                    func: e.pitch_mut(),
+                    color: PlotAutoColor::get_color(i),
+                    name: format!("Pitch {i}"),
+                    id,
+                }
+            })
+            .collect()
+    }
+
+    pub fn volume(audio_entries: &'a mut [AudioEntry]) -> Vec<Self> {
+        audio_entries
+            .iter_mut()
+            .enumerate()
+            .map(|(i, e)| {
+                let id = e.path().clone();
+                Self {
+                    func: e.volume_mut(),
+                    color: PlotAutoColor::get_color(i),
+                    name: format!("Volume {i}"),
+                    id,
+                }
+            })
+            .collect()
+    }
+}
+
+#[derive(Debug)]
+struct DraggingPoint<T> {
+    id: T,
+    index: usize,
+    start_pointer_plot_pos: PlotPoint,
+    grab_offset_screen: egui::Vec2,
+}
+
+impl<T> DraggingPoint<T> {
+    fn new(
+        id: T,
+        index: usize,
+        pointer_plot_pos: PlotPoint,
+        point_screen_pos: Pos2,
+        pointer_screen_pos: Pos2,
+    ) -> Self {
+        Self {
+            id,
+            index,
+            start_pointer_plot_pos: pointer_plot_pos,
+            grab_offset_screen: pointer_screen_pos - point_screen_pos,
+        }
+    }
+
+    fn drag_point(
+        &self,
+        func: &mut EditableFunction,
+        modifiers: &Modifiers,
+        transform: &PlotTransform,
+        pointer_plot_pos: PlotPoint,
+        grid_data: &PlotGridData,
+    ) {
+        if matches!(
+            func.mode,
+            crate::editable_function::EditableFunctionMode::Points
+        ) {
+            func.move_point_to(
+                self.index,
+                self.get_drag_point_pos(modifiers, transform, pointer_plot_pos, grid_data),
+            );
+        }
+    }
+
+    fn get_drag_point_pos(
+        &self,
+        modifiers: &Modifiers,
+        transform: &PlotTransform,
+        pointer_plot_pos: PlotPoint,
+        grid_data: &PlotGridData,
+    ) -> (f64, f64) {
+        // 点のドラッグ処理
+        let mut pointer_plot_pos = (pointer_plot_pos.x, pointer_plot_pos.y);
+        if modifiers.shift_only() {
+            // Shiftキーで縦横スナップ
+            if (pointer_plot_pos.0 - self.start_pointer_plot_pos.x).abs()
+                < (pointer_plot_pos.1 - self.start_pointer_plot_pos.y).abs()
+            {
+                pointer_plot_pos.0 = self.start_pointer_plot_pos.x;
+            } else {
+                pointer_plot_pos.0 = self.start_pointer_plot_pos.y;
+            }
+        } else if modifiers.command_only() {
+            // Ctrlキーでグリッドにスナップ
+            if let Some(snap_to) = grid_data.nearest_point(transform, &pointer_plot_pos) {
+                return snap_to;
+            }
+        }
+        let x = pointer_plot_pos.0 - self.grab_offset_screen.x as f64 / transform.dpos_dvalue_x();
+        let y = pointer_plot_pos.1 - self.grab_offset_screen.y as f64 / transform.dpos_dvalue_y();
+        (x, y)
+    }
+}
+
 #[derive(Debug, Default)]
-pub struct UiPlotEdit {
-    dragging_point: Option<(usize, (f64, f64), Pos2)>,
+pub struct UiPlotEdit<T> {
+    dragging_point: Option<DraggingPoint<T>>,
     last_pointer_button_down: bool,
 }
 
-impl UiPlotEdit {
+impl<T> UiPlotEdit<T> {
     #[expect(clippy::too_many_arguments)]
-    pub fn ui<T: PartialEq + Clone>(
+    pub fn ui<'a>(
         &mut self,
         ui: &mut egui::Ui,
         action: &mut AppAction,
-        entries: &mut [(&mut EditableFunction, egui::Color32, T)],
+        entries: &'a mut [PlotEditEntry<'a, T>],
         selection: &mut Option<T>,
         cursor: &mut Option<&mut Cursor>,
         init_plot: impl FnOnce() -> Plot<'static>,
         inside_plot: impl FnOnce(&mut egui_plot::PlotUi<'_>),
-    ) {
+    ) where
+        T: PartialEq + Clone,
+    {
         let grid_data = PlotGridData::default();
         let plot = grid_data.apply(
             init_plot()
@@ -34,9 +167,14 @@ impl UiPlotEdit {
             self.dragging_point = None;
         }
         let shift_only = ui.input(|i| i.modifiers.shift_only());
+
+        let mut remove_point = None;
+
         let plot_response = plot.show(ui, |plot_ui| {
             let mouse_down = self.check_mouse_down(plot_ui.response());
-            self.plot_content(plot_ui, action, entries, selection, &grid_data, mouse_down);
+
+            remove_point = self.plot_content(plot_ui, action, entries, selection, mouse_down);
+
             if let Some(cursor) = cursor.as_deref() {
                 Self::show_cursor(plot_ui, cursor);
             }
@@ -46,32 +184,72 @@ impl UiPlotEdit {
                 shift_only && self.dragging_point.is_none(),
                 mouse_down,
             );
+
             inside_plot(plot_ui);
+
             plot_ui.pointer_coordinate()
         });
 
-        // 線のクリック処理
-        let mut clicked = plot_response.response.clicked();
-        for (index, (func, _, func_id)) in entries.iter_mut().enumerate() {
-            if plot_response.hovered_plot_item != Some(Id::new(format!("Volume {index}"))) {
-                continue;
-            }
-            let is_selected = selection.as_ref() == Some(func_id);
+        /*
+        // 点のドラッグ移動反映
+        self.point_drag(plot_ui, func, grid_data);
 
+        // 点を削除
+        if let Some(index) = remove_point_index {
+            self.remove_point(index, func);
+            action.add_undo();
+        }
+        */
+
+        let mut clicked = plot_response.response.clicked();
+        for PlotEditEntry {
+            func,
+            color: _,
+            name,
+            id,
+        } in entries.iter_mut()
+        {
+            let is_selected = selection.as_ref() == Some(id);
             let pointer_coordinate = plot_response.inner;
-            if clicked && is_selected {
-                if let Some(pointer) = pointer_coordinate {
-                    func.split_segment(pointer.x);
-                    action.add_undo();
-                    clicked = false;
+
+            // 点のドラッグ移動を反映
+            if let (Some(dragging_point), Some(pointer)) =
+                (self.dragging_point.as_ref(), pointer_coordinate)
+            {
+                if selection.as_ref() == Some(&dragging_point.id) {
+                    dragging_point.drag_point(
+                        func,
+                        &ui.ctx().input(|i| i.modifiers),
+                        &plot_response.transform,
+                        pointer,
+                        &grid_data,
+                    );
                 }
             }
 
-            if clicked {
-                *selection = Some(func_id.clone());
-                clicked = false;
+            // 点の削除
+            if let Some((id, index)) = remove_point.as_ref() {
+                if selection.as_ref() == Some(id) {
+                    func.remove_point(*index);
+                }
+            }
+
+            // 線のクリック処理
+            if clicked && plot_response.hovered_plot_item == Some(Id::new(name)) {
+                if is_selected {
+                    if let Some(pointer) = pointer_coordinate {
+                        func.split_segment(pointer.x);
+                        action.add_undo();
+                        clicked = false;
+                    }
+                } else {
+                    *selection = Some(id.clone());
+                    clicked = false;
+                }
             }
         }
+
+        // 何もないところをクリックしたとき
         if clicked {
             *selection = None;
             if let (Some(cursor), Some(pointer)) = (cursor.as_deref_mut(), plot_response.inner) {
@@ -80,15 +258,18 @@ impl UiPlotEdit {
         }
     }
 
-    fn plot_content<'a, T: PartialEq>(
+    fn plot_content<'a, 'b>(
         &mut self,
         plot_ui: &mut egui_plot::PlotUi<'a>,
         action: &mut AppAction,
-        entries: &'a mut [(&mut EditableFunction, egui::Color32, T)],
+        entries: &'b [PlotEditEntry<'b, T>],
         selection: &Option<T>,
-        grid_data: &PlotGridData,
         mouse_down: bool,
-    ) {
+    ) -> Option<(T, usize)>
+    where
+        'b: 'a,
+        T: PartialEq + Clone,
+    {
         let marker_radius: f32 = 8.0;
         let response = plot_ui.response();
         let width_usize = response.rect.width().round() as usize;
@@ -103,9 +284,16 @@ impl UiPlotEdit {
         let clicked_secondary = response.clicked_by(egui::PointerButton::Secondary);
         let pointer_screen_pos = response.interact_pointer_pos();
 
-        let mut remove_point_index = None;
-        for (index, (func, color, func_id)) in entries.iter_mut().enumerate() {
-            let is_selected = selection.as_ref() == Some(func_id);
+        let mut remove_point = None;
+
+        for PlotEditEntry {
+            func,
+            color,
+            name,
+            id,
+        } in entries
+        {
+            let is_selected = selection.as_ref() == Some(id);
 
             let marker = if is_selected
                 && matches!(
@@ -115,30 +303,29 @@ impl UiPlotEdit {
                 // マーカークリック・ドラッグ
                 for (j, p) in func.points().iter().enumerate() {
                     let screen_pos = plot_ui.screen_from_plot(PlotPoint::new(p.0, p.1));
-                    if let Some(pointer_screen_pos) = pointer_screen_pos {
+                    if let (Some(pointer_screen_pos), Some(pointer_plot_pos)) =
+                        (pointer_screen_pos, plot_ui.pointer_coordinate())
+                    {
                         if pointer_screen_pos.distance_sq(screen_pos) < marker_radius.powi(2) {
                             if mouse_down {
-                                self.dragging_point = Some((j, *p, pointer_screen_pos));
+                                self.dragging_point = Some(DraggingPoint::new(
+                                    id.clone(),
+                                    j,
+                                    pointer_plot_pos,
+                                    screen_pos,
+                                    pointer_screen_pos,
+                                ));
                             }
                             if clicked_secondary {
-                                remove_point_index = Some(j);
+                                remove_point = Some((id.clone(), j));
                             }
                         }
                     }
                 }
 
-                // 点のドラッグ移動反映
-                self.point_drag(plot_ui, func, grid_data);
-
-                // 点を削除
-                if let Some(index) = remove_point_index {
-                    self.remove_point(index, func);
-                    action.add_undo();
-                }
-
                 // マーカー描画
                 let points: Vec<[f64; 2]> = func.points().iter().map(|p| [p.0, p.1]).collect();
-                let marker = Points::new(format!("Volume {index} marker"), points)
+                let marker = Points::new(format!("{name} marker"), points)
                     .highlight(true)
                     .radius(marker_radius / 2f32.sqrt())
                     .shape(egui_plot::MarkerShape::Diamond)
@@ -152,7 +339,7 @@ impl UiPlotEdit {
 
             // 線描画
             let line = Line::new(
-                format!("Volume {index}"),
+                name.clone(),
                 PlotPoints::from_explicit_callback(move |x| func.value_at(x), .., width_usize),
             )
             .width(2.0)
@@ -165,6 +352,8 @@ impl UiPlotEdit {
                 plot_ui.points(marker);
             }
         }
+
+        remove_point
     }
 
     fn show_cursor(plot_ui: &mut egui_plot::PlotUi<'_>, cursor: &Cursor) {
@@ -209,50 +398,12 @@ impl UiPlotEdit {
         mouse_down_now
     }
 
-    fn point_drag(
-        &self,
-        plot_ui: &egui_plot::PlotUi<'_>,
-        func: &mut EditableFunction,
-        grid_data: &PlotGridData,
-    ) {
-        // 点のドラッグ処理
-        if let (Some((index, start_val, pointer_start_pos)), Some(pointer_current_pos)) = (
-            self.dragging_point,
-            plot_ui.response().interact_pointer_pos(),
-        ) {
-            let mut val = plot_ui.plot_from_screen(pointer_current_pos);
-            let (shift, ctrl) = plot_ui
-                .ctx()
-                .input(|input| (input.modifiers.shift_only(), input.modifiers.command_only()));
-            if shift {
-                // Shiftキーで縦横スナップ
-                if (pointer_current_pos.x - pointer_start_pos.x).abs()
-                    < (pointer_current_pos.y - pointer_start_pos.y).abs()
-                {
-                    val.x = start_val.0;
-                } else {
-                    val.y = start_val.1;
-                }
-            } else if ctrl {
-                // Ctrlキーでグリッドにスナップ
-                if let Some(snap) = plot_ui
-                    .pointer_coordinate()
-                    .and_then(|point| grid_data.nearest_point(plot_ui, (point.x, point.y)))
-                {
-                    val.x = snap.0;
-                    val.y = snap.1;
-                }
-            }
-            func.move_point_to(index, (val.x, val.y));
-        }
-    }
-
-    fn remove_point(&mut self, index: usize, func: &mut EditableFunction) {
-        if self.dragging_point.is_some_and(|(i, _, _)| i == index) {
+    /*fn remove_point(&mut self, index: usize, func: &mut EditableFunction) {
+        if self.dragging_point.is_some_and(|p| i == index) {
             self.dragging_point = None;
         }
         func.remove_point(index);
-    }
+    }*/
 
     fn plot_drag(
         plot_ui: &mut egui_plot::PlotUi<'_>,
@@ -326,34 +477,32 @@ impl PlotGridData {
             .grid_spacing(self.spacing)
     }
 
-    fn get_grid(&self, plot_ui: &PlotUi<'_>) -> (Vec<GridMark>, Vec<GridMark>) {
-        let bounds = plot_ui.plot_bounds();
-        let bmin = bounds.min();
-        let bmax = bounds.max();
-        let transform = plot_ui.transform();
+    fn get_grid(&self, transform: &PlotTransform) -> (Vec<GridMark>, Vec<GridMark>) {
+        let plot_bounds = transform.bounds();
+        let bmin = plot_bounds.min();
+        let bmax = plot_bounds.max();
         let grid_x = (self.x_spacer)(GridInput {
             bounds: (bmin[0], bmax[0]),
-            base_step_size: transform.dvalue_dpos()[0].abs() * self.spacing.min as f64,
+            base_step_size: self.spacing.min as f64 / transform.dpos_dvalue_x().abs(),
         });
         let grid_y = (self.x_spacer)(GridInput {
             bounds: (bmin[1], bmax[1]),
-            base_step_size: transform.dvalue_dpos()[1].abs() * self.spacing.min as f64,
+            base_step_size: self.spacing.min as f64 / transform.dpos_dvalue_y().abs(),
         });
         (grid_x, grid_y)
     }
 
-    fn nearest_point(&self, plot_ui: &PlotUi<'_>, point: (f64, f64)) -> Option<(f64, f64)> {
-        let (x, y) = point;
-        let (grid_x, grid_y) = self.get_grid(plot_ui);
+    fn nearest_point(&self, transform: &PlotTransform, point: &(f64, f64)) -> Option<(f64, f64)> {
+        let (grid_x, grid_y) = self.get_grid(transform);
 
         let cx = grid_x
             .iter()
-            .map(|g| (g.value, (g.value - x).abs()))
+            .map(|g| (g.value, (g.value - point.0).abs()))
             .reduce(|a, b| if a.1 < b.1 { a } else { b })
             .map(|a| a.0);
         let cy = grid_y
             .iter()
-            .map(|g| (g.value, (g.value - y).abs()))
+            .map(|g| (g.value, (g.value - point.1).abs()))
             .reduce(|a, b| if a.1 < b.1 { a } else { b })
             .map(|a| a.0);
 
