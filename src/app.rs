@@ -49,7 +49,7 @@ impl Default for MainApp {
             ui_audio_files: UiAudioFiles,
             ui_point_edit: UiPitchVolumeEdit,
             ui_pitch_volume_plots: UiPitchVolumePlots::default(),
-            ui_performance_window: UiPerformanceWindow,
+            ui_performance_window: UiPerformanceWindow::default(),
             ui_config_window: UiSettingWindow,
         }
     }
@@ -159,8 +159,12 @@ impl eframe::App for MainApp {
                     .ui(ui, &mut action, &mut self.state);
             });
 
-        self.ui_performance_window
-            .show(ctx, &mut self.show_performance_window);
+        self.ui_performance_window.show(
+            ctx,
+            &mut self.show_performance_window,
+            &mut action,
+            &mut self.state,
+        );
         self.ui_config_window
             .show(ctx, &mut self.show_setting_window, &mut self.state);
 

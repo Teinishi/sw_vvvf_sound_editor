@@ -1,4 +1,4 @@
-use crate::{app::AppAction, editable_function::EditableFunction, state::AudioEntryId};
+use crate::{app::AppAction, editable_function::EditableFunction};
 use egui::{Id, Pos2, Rangef, Response};
 use egui_plot::{
     GridInput, GridMark, Line, Plot, PlotPoint, PlotPoints, PlotUi, Points, log_grid_spacer,
@@ -11,12 +11,12 @@ pub struct UiPlotEdit {
 }
 
 impl UiPlotEdit {
-    pub fn ui(
+    pub fn ui<T: PartialEq + Clone>(
         &mut self,
         ui: &mut egui::Ui,
         action: &mut AppAction,
-        entries: &mut [(AudioEntryId, egui::Color32, &mut EditableFunction)],
-        selection: &mut Option<AudioEntryId>,
+        entries: &mut [(&mut EditableFunction, egui::Color32, T)],
+        selection: &mut Option<T>,
         init_plot: impl FnOnce() -> Plot<'static>,
         inside_plot: impl FnOnce(&mut egui_plot::PlotUi<'_>),
     ) {
@@ -39,11 +39,11 @@ impl UiPlotEdit {
 
         // 線のクリック処理
         let mut clicked = plot_response.response.clicked();
-        for (index, (path, _, func)) in entries.iter_mut().enumerate() {
+        for (index, (func, _, func_id)) in entries.iter_mut().enumerate() {
             if plot_response.hovered_plot_item != Some(Id::new(format!("Volume {index}"))) {
                 continue;
             }
-            let is_selected = selection.as_ref() == Some(path);
+            let is_selected = selection.as_ref() == Some(func_id);
 
             let pointer_coordinate = plot_response.inner;
             if clicked && is_selected {
@@ -55,7 +55,7 @@ impl UiPlotEdit {
             }
 
             if clicked {
-                *selection = Some(path.clone());
+                *selection = Some(func_id.clone());
                 clicked = false;
             }
         }
@@ -64,12 +64,12 @@ impl UiPlotEdit {
         }
     }
 
-    fn plot_content<'a>(
+    fn plot_content<'a, T: PartialEq>(
         &mut self,
         plot_ui: &mut egui_plot::PlotUi<'a>,
         action: &mut AppAction,
-        entries: &'a mut [(AudioEntryId, egui::Color32, &mut EditableFunction)],
-        selection: &Option<AudioEntryId>,
+        entries: &'a mut [(&mut EditableFunction, egui::Color32, T)],
+        selection: &Option<T>,
         grid_data: &PlotGridData,
     ) {
         let marker_radius: f32 = 8.0;
@@ -88,8 +88,8 @@ impl UiPlotEdit {
         let pointer_screen_pos = response.interact_pointer_pos();
 
         let mut remove_point_index = None;
-        for (index, (path, color, func)) in entries.iter_mut().enumerate() {
-            let is_selected = selection.as_ref() == Some(path);
+        for (index, (func, color, func_id)) in entries.iter_mut().enumerate() {
+            let is_selected = selection.as_ref() == Some(func_id);
 
             let marker = if is_selected
                 && matches!(

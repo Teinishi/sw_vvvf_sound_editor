@@ -60,9 +60,10 @@ impl<'a> UiFunctionEdit<'a> {
         let mut add_point = None;
 
         TableBuilder::new(ui)
-            .column(Column::auto())
+            .column(Column::initial(16.0))
             .columns(Column::exact(60.0), 2)
             .column(Column::exact(20.0))
+            .vscroll(false)
             .header(20.0, |mut header| {
                 header.col(|_| {});
                 header.col(|ui| {
@@ -151,9 +152,10 @@ impl<'a> UiFunctionEdit<'a> {
 
     #[expect(clippy::unused_self)]
     fn ui_expression(&self, ui: &mut egui::Ui, func: &mut EditableFunction) {
-        let mut text = func.expression().to_owned();
-
-        ui.text_edit_singleline(&mut text);
+        ui.horizontal(|ui| {
+            ui.label("f(x)=");
+            ui.text_edit_singleline(&mut func.expression);
+        });
 
         if let Some(err) = func.expression_err() {
             ui.add(Label::new(
@@ -163,6 +165,6 @@ impl<'a> UiFunctionEdit<'a> {
             ));
         }
 
-        func.set_expression(&text);
+        func.update();
     }
 }

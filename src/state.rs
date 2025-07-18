@@ -1,10 +1,24 @@
 use crate::editable_function::{Bounds, EditableFunction};
 use std::path::PathBuf;
 
-#[derive(Debug, Default, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct State {
     pub audio_entries: Vec<AudioEntry>,
     pub selection: Option<AudioEntryId>,
+    pub acceleration: EditableFunction,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            audio_entries: Vec::new(),
+            selection: None,
+            acceleration: EditableFunction::with_expression(
+                "min(2.5,90/x,(80/x)^2)-x/500",
+                Bounds::POSITIVE,
+            ),
+        }
+    }
 }
 
 impl State {
@@ -68,10 +82,7 @@ impl AudioEntry {
                 vec![(40.0, 0.5)],
                 Bounds::new(Some(0.0), None, Some(0.0), Some(1.0)),
             ),
-            pitch_function: EditableFunction::with_points(
-                vec![(40.0, 1.0)],
-                Bounds::new(Some(0.0), None, Some(0.0), None),
-            ),
+            pitch_function: EditableFunction::with_points(vec![(40.0, 1.0)], Bounds::POSITIVE),
         }
     }
 

@@ -10,9 +10,9 @@ pub enum EditableFunctionMode {
 pub struct EditableFunction {
     pub mode: EditableFunctionMode,
     points: Vec<(f64, f64)>,
-    expression_str: String,
+    pub expression: String,
     #[serde(skip)]
-    expression: Option<Result<meval::Expr, meval::Error>>,
+    expr_result: Option<(Result<meval::Expr, meval::Error>, String)>,
     bounds: Bounds,
 }
 
@@ -21,8 +21,8 @@ impl Default for EditableFunction {
         Self {
             mode: EditableFunctionMode::Points,
             points: vec![(0.0, 0.0)],
-            expression_str: String::new(),
-            expression: None,
+            expression: String::new(),
+            expr_result: None,
             bounds: Bounds::default(),
         }
     }
@@ -31,11 +31,18 @@ impl Default for EditableFunction {
 impl EditableFunction {
     pub fn with_points(points: Vec<(f64, f64)>, bounds: Bounds) -> Self {
         Self {
-            mode: EditableFunctionMode::Points,
             points,
-            expression_str: String::new(),
-            expression: None,
             bounds,
+            ..Default::default()
+        }
+    }
+
+    pub fn with_expression(expression: &str, bounds: Bounds) -> Self {
+        Self {
+            mode: EditableFunctionMode::Expression,
+            expression: expression.to_owned(),
+            bounds,
+            ..Default::default()
         }
     }
 
@@ -43,24 +50,28 @@ impl EditableFunction {
         &self.points
     }
 
-    pub fn expression(&self) -> &str {
-        &self.expression_str
-    }
-
     pub fn expression_err(&self) -> Option<&meval::Error> {
-        self.expression.as_ref().and_then(|e| e.as_ref().err())
+        self.expr_result
+            .as_ref()
+            .and_then(|(e, _)| e.as_ref().err())
     }
 
-    pub fn set_expression(&mut self, expression: &str) {
-        self.mode = EditableFunctionMode::Expression;
-        if expression == self.expression_str {
-            return;
-        }
-        self.expression_str = expression.to_owned();
-        if !expression.is_empty() {
-            self.expression = Some(meval::Expr::from_str(expression));
-        } else {
-            self.expression = None;
+    pub fn update(&mut self) {
+        if matches!(self.mode, EditableFunctionMode::Expression)
+            && (self.expression.is_empty() != self.expr_result.is_none()
+                || self
+                    .expr_result
+                    .as_ref()
+                    .is_some_and(|(_, s)| s != &self.expression))
+        {
+            if !self.expression.is_empty() {
+                self.expr_result = Some((
+                    meval::Expr::from_str(&self.expression),
+                    self.expression.clone(),
+                ));
+            } else {
+                self.expr_result = None;
+            }
         }
     }
 
@@ -87,9 +98,9 @@ impl EditableFunction {
                 }
             }
             EditableFunctionMode::Expression => self
-                .expression
+                .expr_result
                 .as_ref()
-                .and_then(|e| e.as_ref().ok())
+                .and_then(|(e, _)| e.as_ref().ok())
                 .and_then(|e| e.eval_with_context(meval::Context::new().var("x", x)).ok())
                 .unwrap_or(f64::NAN),
         }
@@ -181,6 +192,13 @@ pub struct Bounds {
 }
 
 impl Bounds {
+    pub const POSITIVE: Self = Self {
+        min_x: Some(0.0),
+        max_x: None,
+        min_y: Some(0.0),
+        max_y: None,
+    };
+
     pub fn new(
         min_x: Option<f64>,
         max_x: Option<f64>,

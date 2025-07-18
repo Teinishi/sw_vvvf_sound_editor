@@ -115,10 +115,10 @@ impl UiPitchVolumePlots {
             },
         );
 
-        let mut pitch_entries: Vec<(AudioEntryId, egui::Color32, &mut EditableFunction)> = state
+        let mut pitch_entries: Vec<(&mut EditableFunction, egui::Color32, AudioEntryId)> = state
             .pitch_entries_mut()
             .enumerate()
-            .map(|(i, (p, f))| (p, PlotAutoColor::get_color(i), f))
+            .map(|(i, (p, f))| (f, PlotAutoColor::get_color(i), p))
             .collect();
         self.ui_pitch_plot.ui(
             ui,
@@ -144,10 +144,10 @@ impl UiPitchVolumePlots {
             },
         );
 
-        let mut volume_entries: Vec<(AudioEntryId, egui::Color32, &mut EditableFunction)> = state
+        let mut volume_entries: Vec<(&mut EditableFunction, egui::Color32, AudioEntryId)> = state
             .volume_entries_mut()
             .enumerate()
-            .map(|(i, (p, f))| (p, PlotAutoColor::get_color(i), f))
+            .map(|(i, (p, f))| (f, PlotAutoColor::get_color(i), p))
             .collect();
         self.ui_volume_plot.ui(
             ui,
@@ -160,7 +160,7 @@ impl UiPitchVolumePlots {
                     .show_grid(true)
                     .default_x_bounds(0.0, 100.0)
                     .default_y_bounds(0.0, 1.1)
-                    .custom_x_axes(vec![AxisHints::new_x().label("Speed")])
+                    .custom_x_axes(vec![AxisHints::new_x().label("Speed (km/h)")])
                     .custom_y_axes(vec![
                         AxisHints::new_y()
                             .label("Volume")
