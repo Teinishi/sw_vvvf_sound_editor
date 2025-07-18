@@ -1,8 +1,9 @@
 use crate::{
+    player_state::PlayerState,
     state::State,
     ui::{
         UiAudioFiles, UiMenuBar, UiPerformanceWindow, UiPitchVolumeEdit, UiPitchVolumePlots,
-        UiSettingWindow,
+        UiPlayer, UiSettingWindow,
     },
 };
 use egui::{
@@ -15,6 +16,8 @@ pub struct MainApp {
     #[serde(skip)]
     undoer: Undoer<State>,
     state: State,
+    #[serde(skip)]
+    player_state: PlayerState,
     show_audio_files_panel: bool,
     show_point_edit_panel: bool,
     show_performance_window: bool,
@@ -28,9 +31,11 @@ pub struct MainApp {
     #[serde(skip)]
     ui_pitch_volume_plots: UiPitchVolumePlots,
     #[serde(skip)]
+    ui_player: UiPlayer,
+    #[serde(skip)]
     ui_performance_window: UiPerformanceWindow,
     #[serde(skip)]
-    ui_config_window: UiSettingWindow,
+    ui_setting_window: UiSettingWindow,
 }
 
 impl Default for MainApp {
@@ -41,6 +46,7 @@ impl Default for MainApp {
                 ..Default::default()
             }),
             state: State::default(),
+            player_state: PlayerState::default(),
             show_audio_files_panel: true,
             show_point_edit_panel: true,
             show_performance_window: false,
@@ -49,8 +55,9 @@ impl Default for MainApp {
             ui_audio_files: UiAudioFiles,
             ui_point_edit: UiPitchVolumeEdit,
             ui_pitch_volume_plots: UiPitchVolumePlots::default(),
+            ui_player: UiPlayer,
             ui_performance_window: UiPerformanceWindow::default(),
-            ui_config_window: UiSettingWindow,
+            ui_setting_window: UiSettingWindow,
         }
     }
 }
@@ -82,11 +89,17 @@ impl MainApp {
 
         // Load previous app state (if any).
         // Note that you must enable the `persistence` feature for this to work.
-        if let Some(storage) = cc.storage {
+        let mut s: Self = if let Some(storage) = cc.storage {
             eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default()
         } else {
             Default::default()
-        }
+        };
+        s.init();
+        s
+    }
+
+    fn init(&mut self) {
+        self.player_state.check(&self.state.train_performance);
     }
 }
 
@@ -151,6 +164,12 @@ impl eframe::App for MainApp {
                 });
         }
 
+        TopBottomPanel::bottom("train_speed_control")
+            .exact_height(100.0)
+            .show(ctx, |ui| {
+                self.ui_player.ui(ui, &mut self.player_state);
+            });
+
         CentralPanel::default()
             .frame(Frame::central_panel(&ctx.style()).inner_margin(8.0))
             .show(ctx, |ui| {
@@ -159,14 +178,17 @@ impl eframe::App for MainApp {
                     .ui(ui, &mut action, &mut self.state);
             });
 
+        // ウィンドウ
         self.ui_performance_window.show(
             ctx,
             &mut self.show_performance_window,
             &mut action,
             &mut self.state.train_performance,
         );
-        self.ui_config_window
+        self.ui_setting_window
             .show(ctx, &mut self.show_setting_window, &mut self.state);
+
+        self.player_state.update(ctx, &self.state.train_performance);
 
         action.exec(ctx, &mut self.state, &mut self.undoer);
 

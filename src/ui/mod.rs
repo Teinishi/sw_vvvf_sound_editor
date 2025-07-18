@@ -12,6 +12,8 @@ mod ui_plot_edit;
 pub use ui_plot_edit::{UiPlotEdit, aixs_hint_formatter_percentage};
 mod ui_pitch_volume_plot;
 pub use ui_pitch_volume_plot::UiPitchVolumePlots;
+mod ui_player;
+pub use ui_player::UiPlayer;
 mod ui_performance_window;
 pub use ui_performance_window::UiPerformanceWindow;
 mod ui_setting_window;

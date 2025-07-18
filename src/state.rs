@@ -82,9 +82,9 @@ impl AudioEntry {
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct TrainPerformance {
     pub acceleration: EditableFunction,
-    pub power_steps: u32,
+    pub power_steps: u8,
     pub brake_acceleration: f32,
-    pub brake_steps: u32,
+    pub brake_steps: u8,
 }
 
 impl Default for TrainPerformance {
