@@ -83,7 +83,7 @@ impl AudioEntry {
 pub struct TrainPerformance {
     pub acceleration: EditableFunction,
     pub power_steps: u8,
-    pub brake_acceleration: f32,
+    pub brake_acceleration: f64,
     pub brake_steps: u8,
 }
 

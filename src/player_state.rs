@@ -1,15 +1,20 @@
 use crate::state::TrainPerformance;
 use egui::{Context, Key, Modifiers};
+use std::time::Instant;
 
 #[derive(Debug, Clone)]
 pub struct PlayerState {
     pub master_controller: i32,
+    pub speed: f64,
+    last_frame_time: Option<Instant>,
 }
 
 impl Default for PlayerState {
     fn default() -> Self {
         Self {
             master_controller: i32::MIN,
+            speed: 0.0,
+            last_frame_time: None,
         }
     }
 }
@@ -23,7 +28,7 @@ impl PlayerState {
     }
 
     pub fn update(&mut self, ctx: &Context, train_performance: &TrainPerformance) {
-        // マスコン
+        // マスコン キー入力
         let (key_1, key_q, key_a, key_z, key_s) = ctx.input_mut(|i| {
             (
                 i.consume_key(Modifiers::NONE, Key::Num1),
@@ -51,5 +56,27 @@ impl PlayerState {
         }
 
         self.check(train_performance);
+
+        // 速度更新
+        if let Some(dt) = self.last_frame_time.map(|i| i.elapsed().as_secs_f64()) {
+            match self.master_controller.cmp(&0) {
+                std::cmp::Ordering::Greater => {
+                    let f = self.master_controller as f64 / train_performance.power_steps as f64;
+                    let a = train_performance.acceleration.value_at(self.speed);
+                    if !a.is_nan() {
+                        self.speed += f * a * dt;
+                    }
+                }
+                std::cmp::Ordering::Less => {
+                    let f = -self.master_controller as f64 / train_performance.brake_steps as f64;
+                    self.speed -= f * train_performance.brake_acceleration * dt;
+                }
+                std::cmp::Ordering::Equal => {}
+            }
+        }
+        self.speed = self.speed.max(0.0);
+
+        self.last_frame_time = Some(std::time::Instant::now());
+        ctx.request_repaint();
     }
 }
