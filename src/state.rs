@@ -1,5 +1,5 @@
 use crate::editable_function::{Bounds, EditableFunction};
-use std::{ops::RangeInclusive, path::PathBuf};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct State {
@@ -115,44 +115,27 @@ impl AudioEntry {
 
 #[derive(Debug, Default, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct Cursor {
-    range: Option<RangeInclusive<f64>>,
+    values: Option<(f64, f64)>,
 }
 
 impl Cursor {
-    pub fn spot(&mut self, value: f64) {
-        self.range = Some(value..=value);
-    }
-
-    pub fn extend(&mut self, value: f64) {
-        if let Some(range) = self.range.as_mut() {
-            let start = *range.start();
-            let end = *range.end();
-            if value < start {
-                *range = value..=end;
-            } else if end < value {
-                *range = start..=value;
-            }
+    pub fn range(&self) -> Option<(f64, f64)> {
+        if let Some((a, b)) = self.values {
+            Some((a.min(b), a.max(b)))
         } else {
-            self.spot(value);
+            None
         }
     }
 
-    pub fn get_points(&self) -> Vec<f64> {
-        self.range
-            .as_ref()
-            .map(|r| {
-                let start = *r.start();
-                let end = *r.end();
-                if start == end {
-                    vec![start]
-                } else {
-                    vec![start, end]
-                }
-            })
-            .unwrap_or_default()
+    pub fn set_spot(&mut self, value: f64) {
+        self.values = Some((value, value));
     }
 
-    pub fn get_range(&self) -> &Option<RangeInclusive<f64>> {
-        &self.range
+    pub fn extend(&mut self, value: f64) {
+        if let Some((_, b)) = self.values.as_mut() {
+            *b = value;
+        } else {
+            self.set_spot(value);
+        }
     }
 }

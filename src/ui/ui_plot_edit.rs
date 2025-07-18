@@ -75,7 +75,7 @@ impl UiPlotEdit {
         if clicked {
             *selection = None;
             if let (Some(cursor), Some(pointer)) = (cursor.as_deref_mut(), plot_response.inner) {
-                cursor.spot(pointer.x);
+                cursor.set_spot(pointer.x);
             }
         }
     }
@@ -170,12 +170,10 @@ impl UiPlotEdit {
     fn show_cursor(plot_ui: &mut egui_plot::PlotUi<'_>, cursor: &Cursor) {
         let selection_visuals = plot_ui.ctx().style().visuals.selection;
 
-        if let Some(range) = cursor.get_range() {
-            let start = *range.start();
-            let end = *range.end();
-            let range_y = plot_ui.plot_bounds().range_y();
-            let bottom = *range_y.start();
-            let top = *range_y.end();
+        if let Some((start, end)) = cursor.range() {
+            let bounds_y = plot_ui.plot_bounds().range_y();
+            let bottom = *bounds_y.start();
+            let top = *bounds_y.end();
             let (bottom, top) = (bottom - (top - bottom), top + (top - bottom));
             plot_ui.polygon(
                 Polygon::new(
@@ -188,9 +186,15 @@ impl UiPlotEdit {
             );
         }
 
-        for x in cursor.get_points() {
+        if let Some((a, b)) = cursor.range() {
             plot_ui.vline(
-                VLine::new("", x)
+                VLine::new("", a)
+                    .width(selection_visuals.stroke.width)
+                    .color(selection_visuals.stroke.color)
+                    .allow_hover(false),
+            );
+            plot_ui.vline(
+                VLine::new("", b)
                     .width(selection_visuals.stroke.width)
                     .color(selection_visuals.stroke.color)
                     .allow_hover(false),
@@ -271,7 +275,7 @@ impl UiPlotEdit {
         {
             if mouse_down {
                 // 範囲選択開始
-                cursor.spot(pointer.x);
+                cursor.set_spot(pointer.x);
             } else if plot_ui.response().is_pointer_button_down_on() {
                 cursor.extend(pointer.x);
             }
