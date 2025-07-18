@@ -4,7 +4,7 @@ use crate::{
     state::TrainPerformance,
     ui::{UiFunctionEdit, ui_plot_edit::PlotEditEntry},
 };
-use egui::{ScrollArea, Sides, Window};
+use egui::{Grid, ScrollArea, Sides, Slider, Window};
 use egui_plot::{AxisHints, Plot};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -62,9 +62,11 @@ impl UiPerformanceWindow {
                             self.ui_acceleration(ui, action, train_performance);
                         }
                         PerformanceTab::Brake => {
-                            self.ui_brake(ui, action);
+                            self.ui_brake(ui, action, train_performance);
                         }
                     }
+
+                    ui.allocate_space(ui.available_size());
                 });
             });
     }
@@ -75,6 +77,17 @@ impl UiPerformanceWindow {
         action: &mut AppAction,
         train_performance: &mut TrainPerformance,
     ) {
+        Grid::new(ui.id().with("train_performance_acceleration"))
+            .num_columns(2)
+            .spacing([20.0, 4.0])
+            .show(ui, |ui| {
+                ui.label("Power steps");
+                ui.add(
+                    Slider::new(&mut train_performance.power_steps, 1..=8).drag_value_speed(0.1),
+                );
+                ui.end_row();
+            });
+
         let mut reset_viewport = false;
 
         Sides::new().show(
@@ -117,5 +130,29 @@ impl UiPerformanceWindow {
             .ui(ui, &mut train_performance.acceleration);
     }
 
-    fn ui_brake(&self, ui: &mut egui::Ui, action: &mut AppAction) {}
+    #[expect(clippy::unused_self)]
+    fn ui_brake(
+        &self,
+        ui: &mut egui::Ui,
+        _action: &mut AppAction,
+        train_performance: &mut TrainPerformance,
+    ) {
+        Grid::new(ui.id().with("train_performance_brake"))
+            .num_columns(2)
+            .spacing([20.0, 4.0])
+            .show(ui, |ui| {
+                ui.label("Brake steps");
+                ui.add(
+                    Slider::new(&mut train_performance.brake_steps, 1..=8).drag_value_speed(0.1),
+                );
+                ui.end_row();
+
+                ui.label("Brake acceleration (km/h/s)");
+                ui.add(
+                    Slider::new(&mut train_performance.brake_acceleration, 0.0..=8.0)
+                        .drag_value_speed(0.01),
+                );
+                ui.end_row();
+            });
+    }
 }
