@@ -48,6 +48,7 @@ impl UiPerformanceWindow {
                 action,
                 &mut entries,
                 &mut self.selection,
+                &mut None,
                 || {
                     Plot::new("plot_edit_acceleration")
                         .show_axes(true)

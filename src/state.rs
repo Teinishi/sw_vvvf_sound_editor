@@ -1,11 +1,12 @@
 use crate::editable_function::{Bounds, EditableFunction};
-use std::path::PathBuf;
+use std::{ops::RangeInclusive, path::PathBuf};
 
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct State {
     pub audio_entries: Vec<AudioEntry>,
     pub selection: Option<AudioEntryId>,
     pub acceleration: EditableFunction,
+    pub speed_cursor: Cursor,
 }
 
 impl Default for State {
@@ -17,6 +18,7 @@ impl Default for State {
                 "min(2.5,90/x,(80/x)^2)-x/500",
                 Bounds::POSITIVE,
             ),
+            speed_cursor: Cursor::default(),
         }
     }
 }
@@ -108,5 +110,49 @@ impl AudioEntry {
 
     pub fn pitch_mut(&mut self) -> &mut EditableFunction {
         &mut self.pitch_function
+    }
+}
+
+#[derive(Debug, Default, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
+pub struct Cursor {
+    range: Option<RangeInclusive<f64>>,
+}
+
+impl Cursor {
+    pub fn spot(&mut self, value: f64) {
+        self.range = Some(value..=value);
+    }
+
+    pub fn extend(&mut self, value: f64) {
+        if let Some(range) = self.range.as_mut() {
+            let start = *range.start();
+            let end = *range.end();
+            if value < start {
+                *range = value..=end;
+            } else if end < value {
+                *range = start..=value;
+            }
+        } else {
+            self.spot(value);
+        }
+    }
+
+    pub fn get_points(&self) -> Vec<f64> {
+        self.range
+            .as_ref()
+            .map(|r| {
+                let start = *r.start();
+                let end = *r.end();
+                if start == end {
+                    vec![start]
+                } else {
+                    vec![start, end]
+                }
+            })
+            .unwrap_or_default()
+    }
+
+    pub fn get_range(&self) -> &Option<RangeInclusive<f64>> {
+        &self.range
     }
 }

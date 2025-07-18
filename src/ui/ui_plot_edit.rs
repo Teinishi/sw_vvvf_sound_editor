@@ -1,7 +1,8 @@
-use crate::{app::AppAction, editable_function::EditableFunction};
-use egui::{Id, Pos2, Rangef, Response};
+use crate::{app::AppAction, editable_function::EditableFunction, state::Cursor};
+use egui::{Id, Pos2, Rangef, Response, Stroke};
 use egui_plot::{
-    GridInput, GridMark, Line, Plot, PlotPoint, PlotPoints, PlotUi, Points, log_grid_spacer,
+    GridInput, GridMark, Line, Plot, PlotPoint, PlotPoints, PlotUi, Points, Polygon, VLine,
+    log_grid_spacer,
 };
 
 #[derive(Debug, Default)]
@@ -11,12 +12,14 @@ pub struct UiPlotEdit {
 }
 
 impl UiPlotEdit {
+    #[expect(clippy::too_many_arguments)]
     pub fn ui<T: PartialEq + Clone>(
         &mut self,
         ui: &mut egui::Ui,
         action: &mut AppAction,
         entries: &mut [(&mut EditableFunction, egui::Color32, T)],
         selection: &mut Option<T>,
+        cursor: &mut Option<&mut Cursor>,
         init_plot: impl FnOnce() -> Plot<'static>,
         inside_plot: impl FnOnce(&mut egui_plot::PlotUi<'_>),
     ) {
@@ -30,9 +33,19 @@ impl UiPlotEdit {
         if selection.is_none() {
             self.dragging_point = None;
         }
+        let shift_only = ui.input(|i| i.modifiers.shift_only());
         let plot_response = plot.show(ui, |plot_ui| {
-            self.plot_content(plot_ui, action, entries, selection, &grid_data);
-            Self::plot_drag(plot_ui, self.dragging_point.is_none());
+            let mouse_down = self.check_mouse_down(plot_ui.response());
+            self.plot_content(plot_ui, action, entries, selection, &grid_data, mouse_down);
+            if let Some(cursor) = cursor.as_deref() {
+                Self::show_cursor(plot_ui, cursor);
+            }
+            Self::plot_drag(
+                plot_ui,
+                cursor,
+                shift_only && self.dragging_point.is_none(),
+                mouse_down,
+            );
             inside_plot(plot_ui);
             plot_ui.pointer_coordinate()
         });
@@ -61,6 +74,9 @@ impl UiPlotEdit {
         }
         if clicked {
             *selection = None;
+            if let (Some(cursor), Some(pointer)) = (cursor.as_deref_mut(), plot_response.inner) {
+                cursor.spot(pointer.x);
+            }
         }
     }
 
@@ -71,12 +87,12 @@ impl UiPlotEdit {
         entries: &'a mut [(&mut EditableFunction, egui::Color32, T)],
         selection: &Option<T>,
         grid_data: &PlotGridData,
+        mouse_down: bool,
     ) {
         let marker_radius: f32 = 8.0;
         let response = plot_ui.response();
         let width_usize = response.rect.width().round() as usize;
 
-        let mouse_down = self.check_mouse_down(response);
         if self.dragging_point.is_some()
             && (!response.is_pointer_button_down_on() || selection.is_none())
         {
@@ -111,7 +127,7 @@ impl UiPlotEdit {
                     }
                 }
 
-                // ドラッグ移動反映
+                // 点のドラッグ移動反映
                 self.point_drag(plot_ui, func, grid_data);
 
                 // 点を削除
@@ -148,6 +164,37 @@ impl UiPlotEdit {
             if let Some(marker) = marker {
                 plot_ui.points(marker);
             }
+        }
+    }
+
+    fn show_cursor(plot_ui: &mut egui_plot::PlotUi<'_>, cursor: &Cursor) {
+        let selection_visuals = plot_ui.ctx().style().visuals.selection;
+
+        if let Some(range) = cursor.get_range() {
+            let start = *range.start();
+            let end = *range.end();
+            let range_y = plot_ui.plot_bounds().range_y();
+            let bottom = *range_y.start();
+            let top = *range_y.end();
+            let (bottom, top) = (bottom - (top - bottom), top + (top - bottom));
+            plot_ui.polygon(
+                Polygon::new(
+                    "",
+                    vec![[start, bottom], [start, top], [end, top], [end, bottom]],
+                )
+                .fill_color(selection_visuals.bg_fill.linear_multiply(0.2))
+                .stroke(Stroke::NONE)
+                .allow_hover(false),
+            );
+        }
+
+        for x in cursor.get_points() {
+            plot_ui.vline(
+                VLine::new("", x)
+                    .width(selection_visuals.stroke.width)
+                    .color(selection_visuals.stroke.color)
+                    .allow_hover(false),
+            );
         }
     }
 
@@ -203,16 +250,30 @@ impl UiPlotEdit {
         func.remove_point(index);
     }
 
-    fn plot_drag(plot_ui: &mut egui_plot::PlotUi<'_>, enable: bool) -> bool {
+    fn plot_drag(
+        plot_ui: &mut egui_plot::PlotUi<'_>,
+        cursor: &mut Option<&mut Cursor>,
+        pan: bool,
+        mouse_down: bool,
+    ) -> bool {
         let mut dragged = false;
         let mut bounds = plot_ui.plot_bounds();
 
-        if enable {
+        if pan {
             // ドラッグで移動
             let delta = plot_ui.pointer_coordinate_drag_delta();
             if delta.length_sq() > 1e-6 {
                 dragged = true;
                 bounds.translate((-delta.x as f64, -delta.y as f64));
+            }
+        } else if let (Some(cursor), Some(pointer)) =
+            (cursor.as_deref_mut(), plot_ui.pointer_coordinate())
+        {
+            if mouse_down {
+                // 範囲選択開始
+                cursor.spot(pointer.x);
+            } else if plot_ui.response().is_pointer_button_down_on() {
+                cursor.extend(pointer.x);
             }
         }
 
