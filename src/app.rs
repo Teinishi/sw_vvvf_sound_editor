@@ -1,4 +1,7 @@
+use std::sync::{Arc, Mutex};
+
 use crate::{
+    audio_player::{AudioMixer, AudioOutput},
     player_state::PlayerState,
     state::State,
     ui::{
@@ -6,6 +9,7 @@ use crate::{
         UiPlayer, UiSettingWindow,
     },
 };
+use anyhow::Ok;
 use egui::{
     CentralPanel, Frame, Key, KeyboardShortcut, Modifiers, ScrollArea, SidePanel, TopBottomPanel,
     util::undoer::Undoer, vec2,
@@ -36,6 +40,10 @@ pub struct MainApp {
     ui_performance_window: UiPerformanceWindow,
     #[serde(skip)]
     ui_setting_window: UiSettingWindow,
+    #[serde(skip)]
+    audio_output: AudioOutput,
+    #[serde(skip)]
+    audio_mixer: Arc<Mutex<AudioMixer>>,
 }
 
 impl Default for MainApp {
@@ -58,6 +66,8 @@ impl Default for MainApp {
             ui_player: UiPlayer,
             ui_performance_window: UiPerformanceWindow::default(),
             ui_setting_window: UiSettingWindow,
+            audio_output: AudioOutput::default(),
+            audio_mixer: Arc::new(Mutex::new(AudioMixer::default())),
         }
     }
 }
@@ -94,12 +104,15 @@ impl MainApp {
         } else {
             Default::default()
         };
-        s.init();
+        s.init().expect("Unable to play audio.");
         s
     }
 
-    fn init(&mut self) {
+    fn init(&mut self) -> anyhow::Result<()> {
         self.player_state.check(&self.state.train_performance);
+        self.audio_output.play(self.audio_mixer.clone())?;
+
+        Ok(())
     }
 }
 
