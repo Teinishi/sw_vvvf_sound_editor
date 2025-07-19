@@ -28,17 +28,17 @@ impl UiPitchVolumeEdit {
             .as_ref()
             .and_then(|path| entries.iter_mut().find(|e| e.path() == path))
         {
-            ui.push_id("pitch", |ui| {
-                UiFunctionEdit::new("Pitch", ("Speed", "Pitch")).ui(ui, entry.pitch_mut());
-            });
+            UiFunctionEdit::new("Pitch", ("Speed", "Pitch")).ui(
+                ui,
+                ui.id().with("pitch"),
+                entry.pitch_mut(),
+            );
 
             ui.separator();
 
-            ui.push_id("volume", |ui| {
-                UiFunctionEdit::new("Volume", ("Speed", "Volume"))
-                    .y_percentage(true)
-                    .ui(ui, entry.volume_mut());
-            });
+            UiFunctionEdit::new("Volume", ("Speed", "Volume"))
+                .y_percentage(true)
+                .ui(ui, ui.id().with("volume"), entry.volume_mut());
 
             // コメント外してファイルパスを表示
             /* ui.with_layout(Layout::bottom_up(egui::Align::Min), |ui| {

@@ -85,19 +85,28 @@ pub struct TrainPerformance {
     pub power_steps: u8,
     pub brake_acceleration: f64,
     pub brake_steps: u8,
+    pub drag: EditableFunction,
 }
 
 impl Default for TrainPerformance {
     fn default() -> Self {
         Self {
             acceleration: EditableFunction::with_expression(
-                "min(2.5,90/x,(80/x)^2)-x/500",
+                "min(2.5,90/x,(80/x)^2)",
                 Bounds::POSITIVE,
             ),
             power_steps: 5,
             brake_acceleration: 4.2,
             brake_steps: 8,
+            drag: EditableFunction::with_expression("x/500", Bounds::POSITIVE),
         }
+    }
+}
+
+impl TrainPerformance {
+    pub fn update(&mut self) {
+        self.acceleration.update();
+        self.drag.update();
     }
 }
 

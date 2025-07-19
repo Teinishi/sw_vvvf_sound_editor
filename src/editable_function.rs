@@ -38,12 +38,14 @@ impl EditableFunction {
     }
 
     pub fn with_expression(expression: &str, bounds: Bounds) -> Self {
-        Self {
+        let mut s = Self {
             mode: EditableFunctionMode::Expression,
             expression: expression.to_owned(),
             bounds,
             ..Default::default()
-        }
+        };
+        s.update();
+        s
     }
 
     pub fn points(&self) -> &Vec<(f64, f64)> {
@@ -104,6 +106,11 @@ impl EditableFunction {
                 .and_then(|e| e.eval_with_context(meval::Context::new().var("x", x)).ok())
                 .unwrap_or(f64::NAN),
         }
+    }
+
+    pub fn checked_value_at(&self, x: f64) -> Option<f64> {
+        let v = self.value_at(x);
+        if v.is_finite() { Some(v) } else { None }
     }
 
     pub fn insert_point(&mut self, point: (f64, f64)) {

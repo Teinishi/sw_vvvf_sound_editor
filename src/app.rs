@@ -188,6 +188,7 @@ impl eframe::App for MainApp {
         self.ui_setting_window
             .show(ctx, &mut self.show_setting_window, &mut self.state);
 
+        self.state.train_performance.update();
         self.player_state.update(ctx, &self.state.train_performance);
 
         action.exec(ctx, &mut self.state, &mut self.undoer);

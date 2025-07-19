@@ -29,10 +29,15 @@ impl<'a> UiFunctionEdit<'a> {
         self
     }
 
-    pub fn ui(&self, ui: &mut egui::Ui, func: &mut EditableFunction) {
+    pub fn ui(
+        &self,
+        ui: &mut egui::Ui,
+        id_salt: impl std::hash::Hash,
+        func: &mut EditableFunction,
+    ) {
         ui.horizontal(|ui| {
             ui.label(self.title);
-            ComboBox::new(ui.id().with("editable_function_mode_select"), "")
+            ComboBox::new(id_salt, "")
                 .selected_text(format!("{:?}", func.mode))
                 .show_ui(ui, |ui| {
                     ui.selectable_value(&mut func.mode, EditableFunctionMode::Points, "Points");

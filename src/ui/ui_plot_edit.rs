@@ -139,10 +139,19 @@ impl<T> DraggingPoint<T> {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct UiPlotEdit<T> {
     dragging_point: Option<DraggingPoint<T>>,
     last_pointer_button_down: bool,
+}
+
+impl<T> Default for UiPlotEdit<T> {
+    fn default() -> Self {
+        Self {
+            dragging_point: None,
+            last_pointer_button_down: false,
+        }
+    }
 }
 
 impl<T> UiPlotEdit<T> {

@@ -61,7 +61,7 @@ impl UiPlayer {
 
                 // 速度計
                 ui.allocate_ui_with_layout(
-                    egui::vec2(140.0, ui.available_height()),
+                    egui::vec2(160.0, ui.available_height()),
                     Layout::right_to_left(egui::Align::Center),
                     |ui| {
                         let color = ui.ctx().style().visuals.text_color();
@@ -69,7 +69,7 @@ impl UiPlayer {
                         let mut job = LayoutJob::default();
 
                         job.append(
-                            &format!("{:.0}", player_state.speed),
+                            &format!("{:.1}", player_state.speed),
                             0.0,
                             TextFormat {
                                 font_id: FontId::proportional(40.0),

@@ -62,8 +62,7 @@ impl PlayerState {
             match self.master_controller.cmp(&0) {
                 std::cmp::Ordering::Greater => {
                     let f = self.master_controller as f64 / train_performance.power_steps as f64;
-                    let a = train_performance.acceleration.value_at(self.speed);
-                    if !a.is_nan() {
+                    if let Some(a) = train_performance.acceleration.checked_value_at(self.speed) {
                         self.speed += f * a * dt;
                     }
                 }
@@ -72,6 +71,10 @@ impl PlayerState {
                     self.speed -= f * train_performance.brake_acceleration * dt;
                 }
                 std::cmp::Ordering::Equal => {}
+            }
+
+            if let Some(drag) = train_performance.drag.checked_value_at(self.speed) {
+                self.speed -= drag * dt;
             }
         }
         self.speed = self.speed.max(0.0);
