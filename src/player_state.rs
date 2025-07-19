@@ -1,12 +1,29 @@
-use crate::state::TrainPerformance;
+use crate::{audio_player::AudioOutput, state::TrainPerformance};
 use egui::{Context, Key, Modifiers};
 use std::time::Instant;
 
-#[derive(Debug, Clone)]
 pub struct PlayerState {
     pub master_controller: i32,
     pub speed: f64,
     last_frame_time: Option<Instant>,
+    audio_output: AudioOutput,
+}
+
+impl std::fmt::Debug for PlayerState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        #[derive(Debug)]
+        struct PlayerState {
+            #[expect(dead_code)]
+            master_controller: i32,
+            #[expect(dead_code)]
+            speed: f64,
+        }
+        let s = PlayerState {
+            master_controller: self.master_controller,
+            speed: self.speed,
+        };
+        write!(f, "{s:?}")
+    }
 }
 
 impl Default for PlayerState {
@@ -15,11 +32,28 @@ impl Default for PlayerState {
             master_controller: i32::MIN,
             speed: 0.0,
             last_frame_time: None,
+            audio_output: AudioOutput::default(),
         }
     }
 }
 
 impl PlayerState {
+    pub fn play(&mut self) -> anyhow::Result<()> {
+        let mut phase: f32 = 0.0;
+        let step = 440.0 / 48000.0 * 2.0 * std::f32::consts::PI;
+
+        self.audio_output.play(move |data| {
+            for frame in data.chunks_mut(2) {
+                let v = phase.sin() * 0.2;
+                phase += step;
+
+                for o in frame {
+                    *o = v;
+                }
+            }
+        })
+    }
+
     pub fn check(&mut self, train_performance: &TrainPerformance) {
         self.master_controller = self.master_controller.clamp(
             -(train_performance.brake_steps as i32),
@@ -78,6 +112,8 @@ impl PlayerState {
             }
         }
         self.speed = self.speed.max(0.0);
+
+        // 各音声の音量とピッチを更新
 
         self.last_frame_time = Some(std::time::Instant::now());
         ctx.request_repaint();
