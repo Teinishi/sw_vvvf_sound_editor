@@ -190,7 +190,7 @@ impl eframe::App for MainApp {
             .show(ctx, &mut self.show_setting_window, &mut self.state);
 
         self.state.train_performance.update();
-        self.player_state.update(ctx, &self.state.train_performance);
+        self.player_state.update(ctx, &self.state);
 
         action.exec(ctx, &mut self.state, &mut self.undoer);
 

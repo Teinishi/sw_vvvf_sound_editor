@@ -22,6 +22,10 @@ impl Default for AudioOutput {
 }
 
 impl AudioOutput {
+    pub fn config(&self) -> Result<cpal::SupportedStreamConfig, cpal::DefaultStreamConfigError> {
+        self.device.default_output_config()
+    }
+
     pub fn play<F>(&mut self, data_callback: F) -> anyhow::Result<()>
     where
         F: FnMut(&mut [f32]) + Send + 'static,

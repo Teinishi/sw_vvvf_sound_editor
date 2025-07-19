@@ -70,6 +70,14 @@ impl AudioEntry {
             .map(String::from)
     }
 
+    pub fn volume(&self) -> &EditableFunction {
+        &self.volume_function
+    }
+
+    pub fn pitch(&self) -> &EditableFunction {
+        &self.pitch_function
+    }
+
     pub fn volume_mut(&mut self) -> &mut EditableFunction {
         &mut self.volume_function
     }
