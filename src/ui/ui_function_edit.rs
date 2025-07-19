@@ -35,28 +35,30 @@ impl<'a> UiFunctionEdit<'a> {
         id_salt: impl std::hash::Hash,
         func: &mut EditableFunction,
     ) {
-        ui.horizontal(|ui| {
-            ui.label(self.title);
-            ComboBox::new(id_salt, "")
-                .selected_text(format!("{:?}", func.mode))
-                .show_ui(ui, |ui| {
-                    ui.selectable_value(&mut func.mode, EditableFunctionMode::Points, "Points");
-                    ui.selectable_value(
-                        &mut func.mode,
-                        EditableFunctionMode::Expression,
-                        "Expression",
-                    );
-                });
-        });
+        ui.push_id(id_salt, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(self.title);
+                ComboBox::new("ui_function_edit_mode", "")
+                    .selected_text(format!("{:?}", func.mode))
+                    .show_ui(ui, |ui| {
+                        ui.selectable_value(&mut func.mode, EditableFunctionMode::Points, "Points");
+                        ui.selectable_value(
+                            &mut func.mode,
+                            EditableFunctionMode::Expression,
+                            "Expression",
+                        );
+                    });
+            });
 
-        match func.mode {
-            EditableFunctionMode::Points => {
-                self.ui_points(ui, func);
+            match func.mode {
+                EditableFunctionMode::Points => {
+                    self.ui_points(ui, func);
+                }
+                EditableFunctionMode::Expression => {
+                    self.ui_expression(ui, func);
+                }
             }
-            EditableFunctionMode::Expression => {
-                self.ui_expression(ui, func);
-            }
-        }
+        });
     }
 
     fn ui_points(&self, ui: &mut egui::Ui, func: &mut EditableFunction) {
