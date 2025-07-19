@@ -6,7 +6,7 @@ pub struct State {
     pub audio_entries: Vec<AudioEntry>,
     pub selection: Option<AudioEntryId>,
     pub train_performance: TrainPerformance,
-    pub speed_cursor: Cursor,
+    pub speed_cursor: Cursor, // 今のところ不使用
 }
 
 impl State {

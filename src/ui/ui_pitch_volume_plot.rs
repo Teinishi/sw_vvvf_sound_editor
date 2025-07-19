@@ -125,13 +125,12 @@ impl UiPitchVolumePlots {
             },
         );
 
-        let mut cursor = state.speed_cursor.clone();
         self.ui_pitch_plot.ui(
             ui,
             action,
             &mut PlotEditEntry::pitch(&mut state.audio_entries),
             &mut selection,
-            &mut Some(&mut cursor),
+            &mut None,
             || {
                 Plot::new("plot_edit_volume")
                     .show_axes(true)
@@ -162,7 +161,7 @@ impl UiPitchVolumePlots {
             action,
             &mut PlotEditEntry::volume(&mut state.audio_entries),
             &mut selection,
-            &mut Some(&mut cursor),
+            &mut None,
             || {
                 Plot::new("plot_edit_pitch")
                     .show_axes(true)
@@ -193,6 +192,5 @@ impl UiPitchVolumePlots {
         );
 
         state.selection = selection;
-        state.speed_cursor = cursor;
     }
 }
