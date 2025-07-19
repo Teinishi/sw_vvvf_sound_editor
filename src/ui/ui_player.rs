@@ -64,6 +64,8 @@ impl UiPlayer {
                     egui::vec2(140.0, ui.available_height()),
                     Layout::right_to_left(egui::Align::Center),
                     |ui| {
+                        let color = ui.ctx().style().visuals.text_color();
+
                         let mut job = LayoutJob::default();
 
                         job.append(
@@ -71,6 +73,7 @@ impl UiPlayer {
                             0.0,
                             TextFormat {
                                 font_id: FontId::proportional(40.0),
+                                color,
                                 ..Default::default()
                             },
                         );
@@ -80,6 +83,7 @@ impl UiPlayer {
                             10.0,
                             TextFormat {
                                 font_id: FontId::proportional(20.0),
+                                color,
                                 ..Default::default()
                             },
                         );

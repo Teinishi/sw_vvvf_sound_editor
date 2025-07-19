@@ -175,7 +175,7 @@ impl eframe::App for MainApp {
             .show(ctx, |ui| {
                 ui.style_mut().spacing.item_spacing = vec2(8.0, 8.0);
                 self.ui_pitch_volume_plots
-                    .ui(ui, &mut action, &mut self.state);
+                    .ui(ui, &mut action, &mut self.state, &self.player_state);
             });
 
         // ウィンドウ

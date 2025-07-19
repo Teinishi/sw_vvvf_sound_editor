@@ -1,11 +1,12 @@
 use super::{UiPlotEdit, aixs_hint_formatter_percentage};
 use crate::{
     app::AppAction,
+    player_state::PlayerState,
     state::{AudioEntryId, State},
     ui::ui_plot_edit::PlotEditEntry,
 };
-use egui::Sides;
-use egui_plot::{AxisHints, Plot};
+use egui::{Color32, Sides};
+use egui_plot::{AxisHints, Plot, VLine};
 use std::{collections::HashMap, hash::Hash, ops::RangeInclusive};
 
 #[derive(Debug)]
@@ -100,8 +101,18 @@ impl Default for UiPitchVolumePlots {
 }
 
 impl UiPitchVolumePlots {
-    pub fn ui(&mut self, ui: &mut egui::Ui, action: &mut AppAction, state: &mut State) {
+    pub fn ui(
+        &mut self,
+        ui: &mut egui::Ui,
+        action: &mut AppAction,
+        state: &mut State,
+        player_state: &PlayerState,
+    ) {
         let height = ui.available_height();
+        let speed_line_color = match ui.ctx().theme() {
+            egui::Theme::Light => Color32::DARK_GRAY,
+            egui::Theme::Dark => Color32::LIGHT_GRAY,
+        };
 
         let mut selection = state.selection.clone();
         let mut reset_viewport = false;
@@ -125,13 +136,19 @@ impl UiPitchVolumePlots {
                 Plot::new("plot_edit_volume")
                     .show_axes(true)
                     .show_grid(true)
-                    .default_x_bounds(0.0, 100.0)
+                    .default_x_bounds(0.0, 120.0)
                     .default_y_bounds(0.0, 3.0)
                     .custom_x_axes(vec![])
                     .custom_y_axes(vec![AxisHints::new_y().label("Pitch").min_thickness(60.0)])
                     .height(height / 2.0 - 18.0)
             },
             |plot_ui: &mut egui_plot::PlotUi<'_>| {
+                plot_ui.vline(
+                    VLine::new("", player_state.speed)
+                        .allow_hover(false)
+                        .color(speed_line_color),
+                );
+
                 if reset_viewport {
                     plot_ui.set_auto_bounds(true);
                 } else {
@@ -150,7 +167,7 @@ impl UiPitchVolumePlots {
                 Plot::new("plot_edit_pitch")
                     .show_axes(true)
                     .show_grid(true)
-                    .default_x_bounds(0.0, 100.0)
+                    .default_x_bounds(0.0, 120.0)
                     .default_y_bounds(0.0, 1.1)
                     .custom_x_axes(vec![AxisHints::new_x().label("Speed (km/h)")])
                     .custom_y_axes(vec![
@@ -161,6 +178,12 @@ impl UiPitchVolumePlots {
                     ])
             },
             |plot_ui: &mut egui_plot::PlotUi<'_>| {
+                plot_ui.vline(
+                    VLine::new("", player_state.speed)
+                        .allow_hover(false)
+                        .color(speed_line_color),
+                );
+
                 if reset_viewport {
                     plot_ui.set_auto_bounds(true);
                 } else {
