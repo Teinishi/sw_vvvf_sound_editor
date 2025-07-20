@@ -10,6 +10,8 @@ pub struct ResampledLoopAudio {
     resampler_output_buffer: Vec<Vec<f32>>,
     volume: f32,
     pitch: f32,
+    smoothed_volume: f32,
+    smoothed_volume_delta: f32,
     output_buffer: VecDeque<f32>,
 }
 
@@ -36,8 +38,10 @@ impl ResampledLoopAudio {
             resampler,
             resampler_input_buffer,
             resampler_output_buffer,
-            volume: 1.0,
+            volume: 0.0,
             pitch: 1.0,
+            smoothed_volume: 0.0,
+            smoothed_volume_delta: 1.0 / output_sample_rate as f32,
             output_buffer: VecDeque::with_capacity(output_buffer_size),
         })
     }
@@ -83,7 +87,7 @@ impl ResampledLoopAudio {
                 // バッファに書き込み
                 for i in 0..output_len {
                     for channel in &self.resampler_output_buffer {
-                        self.output_buffer.push_back(channel[i] * self.volume);
+                        self.output_buffer.push_back(channel[i]);
                     }
                 }
             } else {
@@ -91,9 +95,12 @@ impl ResampledLoopAudio {
             }
         }
 
+        let dv = self.smoothed_volume_delta;
         // バッファから出力へ移す
         for o in output.iter_mut() {
-            *o += T::from_sample(self.output_buffer.pop_front().unwrap_or_default());
+            let v = self.smoothed_volume;
+            *o += T::from_sample(self.output_buffer.pop_front().unwrap_or_default() * v);
+            self.smoothed_volume = self.volume.clamp(v - dv, v + dv);
         }
     }
 }

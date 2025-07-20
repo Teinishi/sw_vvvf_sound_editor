@@ -27,6 +27,7 @@ fn new_audio_source(
 pub struct PlayerState {
     pub master_controller: i32,
     pub speed: f64,
+    smoothed_acceleration: f64,
     last_frame_time: Option<Instant>,
     audio_output: AudioOutput,
     audio_sources: Arc<Mutex<HashMap<AudioEntryId, anyhow::Result<ResampledLoopAudio>>>>,
@@ -54,6 +55,7 @@ impl Default for PlayerState {
         Self {
             master_controller: i32::MIN,
             speed: 0.0,
+            smoothed_acceleration: 0.0,
             last_frame_time: None,
             audio_output: AudioOutput::default(),
             audio_sources: Default::default(),
@@ -115,23 +117,29 @@ impl PlayerState {
 
         // 速度更新
         if let Some(dt) = self.last_frame_time.map(|i| i.elapsed().as_secs_f64()) {
+            let mut acceleration = 0.0;
+
             match self.master_controller.cmp(&0) {
                 std::cmp::Ordering::Greater => {
                     let f = self.master_controller as f64 / performance.power_steps as f64;
                     if let Some(a) = performance.acceleration.checked_value_at(self.speed) {
-                        self.speed += f * a * dt;
+                        acceleration += f * a;
                     }
                 }
                 std::cmp::Ordering::Less => {
                     let f = -self.master_controller as f64 / performance.brake_steps as f64;
-                    self.speed -= f * performance.brake_acceleration * dt;
+                    acceleration -= f * performance.brake_acceleration;
                 }
                 std::cmp::Ordering::Equal => {}
             }
 
             if let Some(drag) = performance.drag.checked_value_at(self.speed) {
-                self.speed -= drag * dt;
+                acceleration -= drag;
             }
+
+            let sa = &mut self.smoothed_acceleration;
+            *sa = acceleration.clamp(*sa - 4.0 * dt, *sa + 4.0 * dt);
+            self.speed += *sa * dt;
         }
         self.speed = self.speed.max(0.0);
 
