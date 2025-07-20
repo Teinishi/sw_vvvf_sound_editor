@@ -32,18 +32,18 @@ impl UiMenuBar {
                     #[cfg(not(target_arch = "wasm32"))]
                     {
                         ui.menu_button("File", |ui| {
-                            if ui.button("New Project").clicked() {
+                            if button_with_shortcut(ui, "New Project", "Ctrl+N", true).clicked() {
                                 action.new_project();
                             }
                             ui.separator();
-                            if ui.button("Open").clicked() {
+                            if button_with_shortcut(ui, "Open", "Ctrl+O", true).clicked() {
                                 action.open();
                             }
                             ui.separator();
-                            if ui.add_enabled(enable_save, Button::new("Save")).clicked() {
+                            if button_with_shortcut(ui, "Save", "Ctrl+S", enable_save).clicked() {
                                 action.save();
                             }
-                            if ui.button("Save As").clicked() {
+                            if button_with_shortcut(ui, "Save As", "Ctrl+Shift+N", true).clicked() {
                                 action.save_as();
                             }
                             ui.separator();
@@ -54,14 +54,12 @@ impl UiMenuBar {
                     }
 
                     ui.menu_button("Edit", |ui| {
-                        if ui
-                            .add_enabled(action.has_undo(), Button::new("\u{27f2} Undo"))
+                        if button_with_shortcut(ui, "\u{27f2} Undo", "Ctrl+Z", action.has_undo())
                             .clicked()
                         {
                             action.undo();
                         }
-                        if ui
-                            .add_enabled(action.has_redo(), Button::new("\u{27f3} Redo"))
+                        if button_with_shortcut(ui, "\u{27f3} Redo", "Ctrl+Y", action.has_redo())
                             .clicked()
                         {
                             action.redo();
@@ -83,4 +81,16 @@ impl UiMenuBar {
             )
         });
     }
+}
+
+fn button_with_shortcut(
+    ui: &mut egui::Ui,
+    text: &str,
+    shortcut: &str,
+    enabled: bool,
+) -> egui::Response {
+    ui.add_enabled(
+        enabled,
+        Button::new(text).right_text(egui::RichText::new(shortcut).weak()),
+    )
 }
