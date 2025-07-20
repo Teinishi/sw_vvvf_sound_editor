@@ -10,6 +10,8 @@ use egui_plot::{
     log_grid_spacer,
 };
 
+const MARKER_RADIUS: f32 = 8.0;
+
 #[derive(Debug)]
 pub struct PlotEditEntry<'a, T> {
     pub func: &'a mut EditableFunction,
@@ -202,15 +204,15 @@ impl<T> UiPlotEdit<T> {
             plot_ui.pointer_coordinate()
         });
 
+        // クリック処理
         let mut clicked = plot_response.response.clicked();
         for PlotEditEntry {
             func,
             color: _,
-            name,
+            name: _,
             id,
         } in entries.iter_mut()
         {
-            let is_selected = selection.as_ref() == Some(id);
             let pointer_coordinate = plot_response.inner;
 
             // 点のドラッグ移動を反映
@@ -236,15 +238,32 @@ impl<T> UiPlotEdit<T> {
                 }
             }
 
-            // 線のクリック処理
-            if clicked && plot_response.hovered_plot_item == Some(Id::new(name)) {
-                if is_selected {
-                    if let Some(pointer) = pointer_coordinate {
+            // 点の追加
+            if clicked && selection.as_ref() == Some(id)
+            {
+                if let Some(pointer) = pointer_coordinate {
+                    let dpos_dvalue = plot_response.transform.dpos_dvalue_y();
+                    if (pointer.y - func.value_at(pointer.x)).abs()
+                        < -(MARKER_RADIUS as f64) / dpos_dvalue
+                    {
                         func.split_segment(pointer.x);
                         action.add_undo();
                         clicked = false;
                     }
-                } else {
+                }
+            }
+        }
+
+        // 線をクリックして選択 (点の追加より優先度を下げる)
+        if clicked {
+            for PlotEditEntry {
+                func: _,
+                color: _,
+                name,
+                id,
+            } in entries.iter_mut()
+            {
+                if plot_response.hovered_plot_item == Some(Id::new(name)) {
                     *selection = Some(id.clone());
                     clicked = false;
                 }
@@ -272,7 +291,6 @@ impl<T> UiPlotEdit<T> {
         'b: 'a,
         T: PartialEq + Clone,
     {
-        let marker_radius: f32 = 8.0;
         let response = plot_ui.response();
         let width_usize = response.rect.width().round() as usize;
 
@@ -308,7 +326,7 @@ impl<T> UiPlotEdit<T> {
                     if let (Some(pointer_screen_pos), Some(pointer_plot_pos)) =
                         (pointer_screen_pos, plot_ui.pointer_coordinate())
                     {
-                        if pointer_screen_pos.distance_sq(screen_pos) < marker_radius.powi(2) {
+                        if pointer_screen_pos.distance_sq(screen_pos) < MARKER_RADIUS.powi(2) {
                             if mouse_down {
                                 self.dragging_point = Some(DraggingPoint::new(
                                     id.clone(),
@@ -329,7 +347,7 @@ impl<T> UiPlotEdit<T> {
                 let points: Vec<[f64; 2]> = func.points().iter().map(|p| [p.0, p.1]).collect();
                 let marker = Points::new(format!("{name} marker"), points)
                     .highlight(true)
-                    .radius(marker_radius / 2f32.sqrt())
+                    .radius(MARKER_RADIUS / 2f32.sqrt())
                     .shape(egui_plot::MarkerShape::Diamond)
                     .color(*color)
                     .filled(false)
@@ -399,13 +417,6 @@ impl<T> UiPlotEdit<T> {
         self.last_pointer_button_down = down;
         mouse_down_now
     }
-
-    /*fn remove_point(&mut self, index: usize, func: &mut EditableFunction) {
-        if self.dragging_point.is_some_and(|p| i == index) {
-            self.dragging_point = None;
-        }
-        func.remove_point(index);
-    }*/
 
     fn plot_drag(
         plot_ui: &mut egui_plot::PlotUi<'_>,
