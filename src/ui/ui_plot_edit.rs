@@ -4,20 +4,21 @@ use crate::{
     state::{AudioEntry, AudioEntryId, Cursor},
     ui::PlotAutoColor,
 };
-use egui::{Id, Modifiers, Pos2, Rangef, Response, Stroke};
+use egui::{Color32, Id, Modifiers, Pos2, Rangef, Response, Stroke};
 use egui_plot::{
     GridInput, GridMark, Line, Plot, PlotPoint, PlotPoints, PlotTransform, Points, Polygon, VLine,
     log_grid_spacer,
 };
+use std::sync::Arc;
 
 const MARKER_RADIUS: f32 = 8.0;
 
-#[derive(Debug)]
 pub struct PlotEditEntry<'a, T> {
     pub func: &'a mut EditableFunction,
     pub color: egui::Color32,
     pub name: String,
     pub id: T,
+    pub gradient_color: Option<Arc<dyn Fn(PlotPoint) -> Color32 + Send + Sync>>,
 }
 
 impl<'a, T> PlotEditEntry<'a, T> {
@@ -27,22 +28,36 @@ impl<'a, T> PlotEditEntry<'a, T> {
             color,
             name,
             id,
+            gradient_color: None,
         }
     }
 }
 
 impl<'a> PlotEditEntry<'a, AudioEntryId> {
-    pub fn pitch(audio_entries: &'a mut [AudioEntry]) -> Vec<Self> {
+    pub fn pitch(
+        audio_entries: &'a mut [AudioEntry],
+        selection: &Option<AudioEntryId>,
+    ) -> Vec<Self> {
         audio_entries
             .iter_mut()
             .enumerate()
             .map(|(i, e)| {
                 let id = e.path().clone();
+                let is_selected = selection.as_ref() == Some(&id);
+                let color = PlotAutoColor::get_color(i);
+                let volume_fn = e.volume().clone();
+                let gradient_color = move |p: PlotPoint| {
+                    // 音量依存で濃さを変更
+                    let v = volume_fn.value_at(p.x) as f32;
+                    let f = 0.1 + 0.9 * v;
+                    color.linear_multiply(f)
+                };
                 Self {
                     func: e.pitch_mut(),
-                    color: PlotAutoColor::get_color(i),
+                    color,
                     name: format!("Pitch {i}"),
                     id,
+                    gradient_color: (!is_selected).then_some(Arc::new(gradient_color)),
                 }
             })
             .collect()
@@ -59,6 +74,7 @@ impl<'a> PlotEditEntry<'a, AudioEntryId> {
                     color: PlotAutoColor::get_color(i),
                     name: format!("Volume {i}"),
                     id,
+                    gradient_color: None,
                 }
             })
             .collect()
@@ -211,6 +227,7 @@ impl<T> UiPlotEdit<T> {
             color: _,
             name: _,
             id,
+            gradient_color: _,
         } in entries.iter_mut()
         {
             let pointer_coordinate = plot_response.inner;
@@ -239,8 +256,7 @@ impl<T> UiPlotEdit<T> {
             }
 
             // 点の追加
-            if clicked && selection.as_ref() == Some(id)
-            {
+            if clicked && selection.as_ref() == Some(id) {
                 if let Some(pointer) = pointer_coordinate {
                     let dpos_dvalue = plot_response.transform.dpos_dvalue_y();
                     if (pointer.y - func.value_at(pointer.x)).abs()
@@ -261,6 +277,7 @@ impl<T> UiPlotEdit<T> {
                 color: _,
                 name,
                 id,
+                gradient_color: _,
             } in entries.iter_mut()
             {
                 if plot_response.hovered_plot_item == Some(Id::new(name)) {
@@ -311,6 +328,7 @@ impl<T> UiPlotEdit<T> {
             color,
             name,
             id,
+            gradient_color,
         } in entries
         {
             let is_selected = selection.as_ref() == Some(id);
@@ -358,13 +376,17 @@ impl<T> UiPlotEdit<T> {
             };
 
             // 線描画
-            let line = Line::new(
+            let mut line = Line::new(
                 name.clone(),
                 PlotPoints::from_explicit_callback(move |x| func.value_at(x), .., width_usize),
             )
             .width(2.0)
-            .color(*color)
             .highlight(is_selected);
+            if let Some(gradient_color) = gradient_color {
+                line = line.gradient_color(gradient_color.clone(), false);
+            } else {
+                line = line.color(*color);
+            }
             plot_ui.line(line);
 
             // マーカーは線より上に表示
