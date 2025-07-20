@@ -65,8 +65,7 @@ impl ResampledLoopAudio {
                     *b = source[(c + i) % l];
                 }
             }
-            self.source_cursor += self.resampler_input_buffer[0].len();
-            self.source_cursor %= l;
+            self.source_cursor = (c + self.resampler_input_buffer[0].len()) % l;
 
             // リサンプル
             if let Ok(result) = self

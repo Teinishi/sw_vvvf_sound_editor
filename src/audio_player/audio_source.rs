@@ -1,3 +1,4 @@
+use anyhow::Context as _;
 use anyhow::bail;
 use lewton::inside_ogg::OggStreamReader;
 use std::io;
@@ -21,7 +22,7 @@ impl AudioSource {
         let in_channels = stream.ident_hdr.audio_channels as usize;
 
         let mut samples = vec![Vec::new(); output_channels];
-        while let Some(pck) = stream.read_dec_packet_itl().expect("Decode error") {
+        while let Some(pck) = stream.read_dec_packet_itl()? {
             for frame in pck.chunks_exact(in_channels) {
                 let mut frame_f32 = frame.iter().map(|v| *v as f32 / 32768.0);
                 if in_channels == output_channels {
@@ -44,7 +45,10 @@ impl AudioSource {
                 }
             }
         }
-        let len = samples[0].len();
+
+        let len = stream
+            .get_last_absgp()
+            .context("Failed to get data length")? as usize;
 
         Ok(Self {
             samples,
