@@ -1,3 +1,5 @@
+use std::collections::VecDeque;
+
 use crate::{
     player_state::PlayerState,
     preference::Preference,
@@ -8,8 +10,8 @@ use crate::{
     },
 };
 use egui::{
-    CentralPanel, Frame, Key, KeyboardShortcut, Modifiers, ScrollArea, SidePanel, TopBottomPanel,
-    util::undoer::Undoer, vec2,
+    CentralPanel, Frame, Id, Key, KeyboardShortcut, Modal, Modifiers, ScrollArea, SidePanel, Sides,
+    TopBottomPanel, util::undoer::Undoer, vec2,
 };
 
 #[derive(Debug, serde::Deserialize, serde::Serialize)]
@@ -38,6 +40,10 @@ pub struct MainApp {
     ui_performance_window: UiPerformanceWindow,
     #[serde(skip)]
     ui_setting_window: UiSettingWindow,
+    #[serde(skip)]
+    error_modals: VecDeque<(u32, anyhow::Error)>,
+    #[serde(skip)]
+    next_modal_id: u32,
 }
 
 impl Default for MainApp {
@@ -61,6 +67,8 @@ impl Default for MainApp {
             ui_player: UiPlayer,
             ui_performance_window: UiPerformanceWindow::default(),
             ui_setting_window: UiSettingWindow,
+            error_modals: VecDeque::new(),
+            next_modal_id: 0,
         }
     }
 }
@@ -196,7 +204,24 @@ impl eframe::App for MainApp {
         self.state.train_performance.update();
         self.player_state.update(ctx, &self.state, &self.preference);
 
-        action.exec(ctx, &mut self.state, &mut self.undoer);
+        if let Err(err) = action.exec(ctx, Some(frame), &mut self.state, &mut self.undoer) {
+            self.error_modals.push_back((self.next_modal_id, err));
+            self.next_modal_id += 1;
+        }
+        if let Some((id, err)) = self.error_modals.front() {
+            let modal = Modal::new(Id::new(format!("modal_{id}"))).show(ctx, |ui| {
+                ui.heading("\u{26a0} Error");
+                ui.add_space(8.0);
+                ui.label(format!("{err:?}"));
+                ui.add_space(8.0);
+                Sides::new()
+                    .show(ui, |_| {}, |ui| ui.button("Close").clicked())
+                    .1
+            });
+            if modal.should_close() || modal.inner {
+                self.error_modals.pop_front();
+            }
+        }
 
         self.undoer.feed_state(ctx.input(|i| i.time), &self.state);
     }
@@ -207,7 +232,11 @@ pub struct AppAction {
     has_undo: bool,
     has_redo: bool,
 
-    close: bool,
+    new_project: bool,
+    open: bool,
+    save: bool,
+    save_as: bool,
+    quit: bool,
     add_undo: bool,
     undo: bool,
     redo: bool,
@@ -222,13 +251,28 @@ impl AppAction {
         }
     }
 
-    fn exec<T: Clone + PartialEq>(
+    fn exec<T, W>(
         &self,
         ctx: &egui::Context,
+        parent: Option<&W>,
         state: &mut T,
         undoer: &mut Undoer<T>,
-    ) {
-        if self.close {
+    ) -> anyhow::Result<()>
+    where
+        T: Clone + PartialEq + serde::Serialize,
+        W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle,
+    {
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.save_as {
+            if let Some(save_path) = save_dialog(parent) {
+                use std::{fs::File, io::Write as _};
+
+                let json = serde_json::to_string(&state)?;
+                let mut file = File::create(save_path)?;
+                file.write_all(json.as_bytes())?;
+            }
+        }
+        if self.quit {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
         if self.add_undo {
@@ -252,6 +296,8 @@ impl AppAction {
                 *state = s.clone();
             }
         }
+
+        Ok(())
     }
 
     pub fn has_undo(&self) -> bool {
@@ -262,8 +308,24 @@ impl AppAction {
         self.has_redo
     }
 
-    pub fn close(&mut self) {
-        self.close = true;
+    pub fn new_project(&mut self) {
+        self.new_project = true;
+    }
+
+    pub fn open(&mut self) {
+        self.open = true;
+    }
+
+    pub fn save(&mut self) {
+        self.save = true;
+    }
+
+    pub fn save_as(&mut self) {
+        self.save_as = true;
+    }
+
+    pub fn quit(&mut self) {
+        self.quit = true;
     }
 
     pub fn add_undo(&mut self) {
@@ -277,4 +339,16 @@ impl AppAction {
     pub fn redo(&mut self) {
         self.redo = true;
     }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+fn save_dialog<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle>(
+    parent: Option<&W>,
+) -> Option<std::path::PathBuf> {
+    let mut dialog = rfd::FileDialog::new();
+    if let Some(p) = parent {
+        dialog = dialog.set_parent(p);
+    }
+    dialog = dialog.add_filter("JSON File", &["json"]);
+    dialog.save_file()
 }

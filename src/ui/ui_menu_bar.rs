@@ -25,8 +25,20 @@ impl UiMenuBar {
                     #[cfg(not(target_arch = "wasm32"))]
                     {
                         ui.menu_button("File", |ui| {
+                            if ui.button("New Project").clicked() {
+                                action.new_project();
+                            }
+                            if ui.button("Open").clicked() {
+                                action.open();
+                            }
+                            if ui.button("Save").clicked() {
+                                action.save();
+                            }
+                            if ui.button("Save As").clicked() {
+                                action.save_as();
+                            }
                             if ui.button("Quit").clicked() {
-                                action.close();
+                                action.quit();
                             }
                         });
                     }
