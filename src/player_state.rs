@@ -1,5 +1,6 @@
 use crate::{
     audio_player::{AudioOutput, AudioSource, ResampledLoopAudio},
+    preference::Preference,
     state::{AudioEntryId, State, TrainPerformance},
 };
 use egui::{Context, Key, Modifiers};
@@ -79,7 +80,7 @@ impl PlayerState {
         );
     }
 
-    pub fn update(&mut self, ctx: &Context, state: &State) {
+    pub fn update(&mut self, ctx: &Context, state: &State, preference: &Preference) {
         let performance = &state.train_performance;
 
         // マスコン キー入力
@@ -154,7 +155,10 @@ impl PlayerState {
                             0.0
                         };
                         let pitch = entry.pitch().value_at(self.speed);
-                        source.set_volume_pitch(volume as f32, pitch as f32);
+                        source.set_volume_pitch(
+                            preference.global_volume * volume as f32,
+                            pitch as f32,
+                        );
                     }
                 }
             }

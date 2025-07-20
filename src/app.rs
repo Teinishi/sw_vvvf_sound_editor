@@ -1,5 +1,6 @@
 use crate::{
     player_state::PlayerState,
+    preference::Preference,
     state::State,
     ui::{
         UiAudioFiles, UiMenuBar, UiPerformanceWindow, UiPitchVolumeEdit, UiPitchVolumePlots,
@@ -16,6 +17,7 @@ pub struct MainApp {
     #[serde(skip)]
     undoer: Undoer<State>,
     state: State,
+    preference: Preference,
     #[serde(skip)]
     player_state: PlayerState,
     show_audio_files_panel: bool,
@@ -46,6 +48,7 @@ impl Default for MainApp {
                 ..Default::default()
             }),
             state: State::default(),
+            preference: Preference::default(),
             player_state: PlayerState::default(),
             show_audio_files_panel: true,
             show_point_edit_panel: true,
@@ -166,9 +169,10 @@ impl eframe::App for MainApp {
         }
 
         TopBottomPanel::bottom("train_speed_control")
-            .exact_height(100.0)
+            .exact_height(80.0)
             .show(ctx, |ui| {
-                self.ui_player.ui(ui, &mut self.player_state);
+                self.ui_player
+                    .ui(ui, &mut self.preference, &mut self.player_state);
             });
 
         CentralPanel::default()
@@ -190,7 +194,7 @@ impl eframe::App for MainApp {
             .show(ctx, &mut self.show_setting_window, &mut self.state);
 
         self.state.train_performance.update();
-        self.player_state.update(ctx, &self.state);
+        self.player_state.update(ctx, &self.state, &self.preference);
 
         action.exec(ctx, &mut self.state, &mut self.undoer);
 
