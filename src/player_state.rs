@@ -148,7 +148,11 @@ impl PlayerState {
                     }
                     if let Some(Ok(source)) = sources.get_mut(path) {
                         // 各音声の音量とピッチを更新
-                        let volume = entry.volume().value_at(self.speed);
+                        let volume = if self.master_controller != 0 && self.speed > 1e-6 {
+                            entry.volume().value_at(self.speed)
+                        } else {
+                            0.0
+                        };
                         let pitch = entry.pitch().value_at(self.speed);
                         source.set_volume_pitch(volume as f32, pitch as f32);
                     }

@@ -166,7 +166,7 @@ impl<T> UiPlotEdit<T> {
         init_plot: impl FnOnce() -> Plot<'static>,
         inside_plot: impl FnOnce(&mut egui_plot::PlotUi<'_>),
     ) where
-        T: PartialEq + Clone,
+        T: PartialEq + Clone + std::fmt::Debug,
     {
         let grid_data = PlotGridData::default();
         let plot = grid_data.apply(
@@ -217,23 +217,20 @@ impl<T> UiPlotEdit<T> {
             if let (Some(dragging_point), Some(pointer)) =
                 (self.dragging_point.as_ref(), pointer_coordinate)
             {
-                if selection.as_ref() == Some(&dragging_point.id) {
-                    let changed = dragging_point.drag_point(
+                if id == &dragging_point.id {
+                    dragging_point.drag_point(
                         func,
                         &ui.ctx().input(|i| i.modifiers),
                         &plot_response.transform,
                         pointer,
                         &grid_data,
                     );
-                    if changed {
-                        action.add_undo();
-                    }
                 }
             }
 
             // 点の削除
-            if let Some((id, index)) = remove_point.as_ref() {
-                if selection.as_ref() == Some(id) {
+            if let Some((remove_id, index)) = remove_point.as_ref() {
+                if id == remove_id {
                     func.remove_point(*index);
                     action.add_undo();
                 }
