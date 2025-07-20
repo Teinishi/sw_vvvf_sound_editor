@@ -13,6 +13,7 @@ impl UiMenuBar {
         &self,
         ui: &mut egui::Ui,
         action: &mut AppAction,
+        enable_save: bool,
         show_audio_files_panel: &mut bool,
         show_point_edit_panel: &mut bool,
         show_performance_window: &mut bool,
@@ -28,15 +29,18 @@ impl UiMenuBar {
                             if ui.button("New Project").clicked() {
                                 action.new_project();
                             }
+                            ui.separator();
                             if ui.button("Open").clicked() {
                                 action.open();
                             }
-                            if ui.button("Save").clicked() {
+                            ui.separator();
+                            if ui.add_enabled(enable_save, Button::new("Save")).clicked() {
                                 action.save();
                             }
                             if ui.button("Save As").clicked() {
                                 action.save_as();
                             }
+                            ui.separator();
                             if ui.button("Quit").clicked() {
                                 action.quit();
                             }

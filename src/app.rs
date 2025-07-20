@@ -1,4 +1,4 @@
-use std::collections::VecDeque;
+use std::{collections::VecDeque, path::PathBuf};
 
 use crate::{
     player_state::PlayerState,
@@ -19,6 +19,7 @@ pub struct MainApp {
     #[serde(skip)]
     undoer: Undoer<State>,
     state: State,
+    state_file: Option<PathBuf>,
     preference: Preference,
     #[serde(skip)]
     player_state: PlayerState,
@@ -54,6 +55,7 @@ impl Default for MainApp {
                 ..Default::default()
             }),
             state: State::default(),
+            state_file: None,
             preference: Preference::default(),
             player_state: PlayerState::default(),
             show_audio_files_panel: true,
@@ -127,6 +129,7 @@ impl eframe::App for MainApp {
             self.ui_menu_bar.ui(
                 ui,
                 &mut action,
+                self.state_file.is_some(),
                 &mut self.show_audio_files_panel,
                 &mut self.show_point_edit_panel,
                 &mut self.show_performance_window,
@@ -201,10 +204,19 @@ impl eframe::App for MainApp {
         self.ui_setting_window
             .show(ctx, &mut self.show_setting_window, &mut self.state);
 
+        // 毎フレーム更新処理
         self.state.train_performance.update();
         self.player_state.update(ctx, &self.state, &self.preference);
 
-        if let Err(err) = action.exec(ctx, Some(frame), &mut self.state, &mut self.undoer) {
+        // action を実行、エラーをモーダルで表示
+        action.shortcut(ctx);
+        if let Err(err) = action.exec(
+            ctx,
+            Some(frame),
+            &mut self.state,
+            &mut self.undoer,
+            &mut self.state_file,
+        ) {
             self.error_modals.push_back((self.next_modal_id, err));
             self.next_modal_id += 1;
         }
@@ -223,6 +235,7 @@ impl eframe::App for MainApp {
             }
         }
 
+        // undoer 更新
         self.undoer.feed_state(ctx.input(|i| i.time), &self.state);
     }
 }
@@ -251,17 +264,45 @@ impl AppAction {
         }
     }
 
+    fn shortcut(&mut self, ctx: &egui::Context) {
+        let (ctrl_n, ctrl_o, ctrl_s, ctrl_shfit_s) = ctx.input_mut(|i| {
+            (
+                i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::N)),
+                i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::O)),
+                i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::S)),
+                i.consume_shortcut(&KeyboardShortcut::new(
+                    Modifiers::COMMAND.plus(Modifiers::SHIFT),
+                    Key::S,
+                )),
+            )
+        });
+        if ctrl_n {
+            self.new_project();
+        }
+        if ctrl_o {
+            self.open();
+        }
+        if ctrl_s {
+            self.save();
+        }
+        if ctrl_shfit_s {
+            self.save_as();
+        }
+    }
+
     fn exec<T, W>(
         &self,
         ctx: &egui::Context,
         parent: Option<&W>,
         state: &mut T,
         undoer: &mut Undoer<T>,
+        state_filepath: &mut Option<PathBuf>,
     ) -> anyhow::Result<()>
     where
         T: Clone + PartialEq + for<'a> serde::Deserialize<'a> + serde::Serialize + Default,
         W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle,
     {
+        // エラーにならないものを先にやっておく
         if self.quit {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
@@ -286,30 +327,68 @@ impl AppAction {
                 *state = s.clone();
             }
         }
-
         if self.new_project {
             // todo: 確認ダイアログ
             *state = T::default();
         }
+
+        // エラーになりうるもの
         #[cfg(not(target_arch = "wasm32"))]
         if self.open {
             if let Some(path) = crate::file_dialog::open_json_dialog(parent) {
-                use std::fs::File;
-
-                *state = serde_json::from_reader(File::open(path)?)?;
+                Self::open_file(path, state, state_filepath)?;
+            }
+        }
+        let mut save_as = self.save_as;
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.save {
+            if let Some(path) = &state_filepath {
+                Self::save_file(path.clone(), state, state_filepath)?;
+            } else {
+                save_as = true;
             }
         }
         #[cfg(not(target_arch = "wasm32"))]
-        if self.save_as {
+        if save_as {
             if let Some(path) = crate::file_dialog::save_json_dialog(parent) {
-                use std::{fs::File, io::Write as _};
-
-                let json = serde_json::to_string(&state)?;
-                let mut file = File::create(path)?;
-                file.write_all(json.as_bytes())?;
+                Self::save_file(path, state, state_filepath)?;
             }
         }
 
+        Ok(())
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn open_file<T>(
+        path: PathBuf,
+        state: &mut T,
+        state_filepath: &mut Option<PathBuf>,
+    ) -> anyhow::Result<()>
+    where
+        T: for<'a> serde::Deserialize<'a>,
+    {
+        use std::fs::File;
+
+        *state = serde_json::from_reader(File::open(&path)?)?;
+        *state_filepath = Some(path);
+        Ok(())
+    }
+
+    #[cfg(not(target_arch = "wasm32"))]
+    fn save_file<T>(
+        path: PathBuf,
+        state: &T,
+        state_filepath: &mut Option<PathBuf>,
+    ) -> anyhow::Result<()>
+    where
+        T: serde::Serialize,
+    {
+        use std::{fs::File, io::Write as _};
+
+        let json = serde_json::to_string(&state)?;
+        let mut file = File::create(&path)?;
+        file.write_all(json.as_bytes())?;
+        *state_filepath = Some(path);
         Ok(())
     }
 
