@@ -5,6 +5,6 @@ pub struct Preference {
 
 impl Default for Preference {
     fn default() -> Self {
-        Self { global_volume: 1.0 }
+        Self { global_volume: 0.5 }
     }
 }

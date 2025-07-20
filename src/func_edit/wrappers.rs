@@ -2,6 +2,7 @@ use super::{EditableFunc, EditableFuncMode, FuncEdit};
 
 #[derive(Debug, Default, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct EditableZeroOneFunc {
+    #[serde(flatten)]
     inner: EditableFunc,
 }
 
@@ -77,6 +78,7 @@ impl EditableZeroOneFunc {
 
 #[derive(Debug, Default, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct EditablePositiveFunc {
+    #[serde(flatten)]
     inner: EditableFunc,
 }
 
