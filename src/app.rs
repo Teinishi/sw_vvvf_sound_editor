@@ -259,19 +259,9 @@ impl AppAction {
         undoer: &mut Undoer<T>,
     ) -> anyhow::Result<()>
     where
-        T: Clone + PartialEq + serde::Serialize,
+        T: Clone + PartialEq + for<'a> serde::Deserialize<'a> + serde::Serialize + Default,
         W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle,
     {
-        #[cfg(not(target_arch = "wasm32"))]
-        if self.save_as {
-            if let Some(save_path) = save_dialog(parent) {
-                use std::{fs::File, io::Write as _};
-
-                let json = serde_json::to_string(&state)?;
-                let mut file = File::create(save_path)?;
-                file.write_all(json.as_bytes())?;
-            }
-        }
         if self.quit {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
@@ -294,6 +284,29 @@ impl AppAction {
         {
             if let Some(s) = undoer.redo(state) {
                 *state = s.clone();
+            }
+        }
+
+        if self.new_project {
+            // todo: 確認ダイアログ
+            *state = T::default();
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.open {
+            if let Some(path) = crate::file_dialog::open_json_dialog(parent) {
+                use std::fs::File;
+
+                *state = serde_json::from_reader(File::open(path)?)?;
+            }
+        }
+        #[cfg(not(target_arch = "wasm32"))]
+        if self.save_as {
+            if let Some(path) = crate::file_dialog::save_json_dialog(parent) {
+                use std::{fs::File, io::Write as _};
+
+                let json = serde_json::to_string(&state)?;
+                let mut file = File::create(path)?;
+                file.write_all(json.as_bytes())?;
             }
         }
 
@@ -339,16 +352,4 @@ impl AppAction {
     pub fn redo(&mut self) {
         self.redo = true;
     }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn save_dialog<W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle>(
-    parent: Option<&W>,
-) -> Option<std::path::PathBuf> {
-    let mut dialog = rfd::FileDialog::new();
-    if let Some(p) = parent {
-        dialog = dialog.set_parent(p);
-    }
-    dialog = dialog.add_filter("JSON File", &["json"]);
-    dialog.save_file()
 }
