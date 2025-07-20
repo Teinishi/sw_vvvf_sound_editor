@@ -2,9 +2,9 @@
 
 mod app;
 mod audio_player;
-mod editable_function;
 #[cfg(not(target_arch = "wasm32"))]
 mod file_dialog;
+mod func_edit;
 mod player_state;
 mod preference;
 mod state;

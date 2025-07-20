@@ -1,24 +1,28 @@
+use super::FuncEdit;
+use core::panic;
 use std::str::FromStr as _;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize, serde::Serialize)]
-pub enum EditableFunctionMode {
+pub enum EditableFuncMode {
     Points,
     Expression,
 }
 
+type FnClamp = fn((f64, f64)) -> (f64, f64);
+
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
-pub struct EditableFunction {
-    pub mode: EditableFunctionMode,
+pub struct EditableFunc {
+    pub mode: EditableFuncMode,
     points: Vec<(f64, f64)>,
     pub expression: String,
     #[serde(skip)]
     expr_result: Option<(Result<meval::Expr, meval::Error>, String)>,
 }
 
-impl Default for EditableFunction {
+impl Default for EditableFunc {
     fn default() -> Self {
         Self {
-            mode: EditableFunctionMode::Points,
+            mode: EditableFuncMode::Points,
             points: vec![(0.0, 0.0)],
             expression: String::new(),
             expr_result: None,
@@ -26,36 +30,63 @@ impl Default for EditableFunction {
     }
 }
 
-impl EditableFunction {
-    pub fn with_points(points: Vec<(f64, f64)>) -> Self {
-        Self {
-            points,
-            ..Default::default()
+impl FuncEdit for EditableFunc {
+    fn mode(&self) -> &EditableFuncMode {
+        &self.mode
+    }
+
+    fn mode_mut(&mut self) -> &mut EditableFuncMode {
+        &mut self.mode
+    }
+
+    fn points(&self) -> Option<&Vec<(f64, f64)>> {
+        Some(&self.points)
+    }
+
+    fn value_at(&self, x: f64) -> f64 {
+        self.value_at_clamped(x, |p| p)
+    }
+
+    fn checked_value_at(&self, x: f64) -> Option<f64> {
+        self.checked_value_at_clamped(x, |p| p)
+    }
+
+    fn insert_point(&mut self, pos: (f64, f64)) -> (usize, (f64, f64)) {
+        self.insert_point_clamped(pos, |p| p)
+    }
+
+    fn insert_point_by_index(&mut self, index: usize) -> (usize, (f64, f64)) {
+        self.insert_point_by_index_clamped(index, |p| p)
+    }
+
+    fn split_segment(&mut self, x: f64) -> (usize, (f64, f64)) {
+        self.split_segment_clamped(x, |p| p)
+    }
+
+    fn move_point_to(&mut self, index: usize, pos: (f64, f64)) -> Option<(f64, f64)> {
+        self.move_point_to_clamped(index, pos, |p| p)
+    }
+
+    fn remove_point(&mut self, index: usize) -> Option<(f64, f64)> {
+        if self.points.len() >= 2 {
+            Some(self.points.remove(index))
+        } else {
+            None
         }
     }
 
-    pub fn with_expression(expression: &str) -> Self {
-        let mut s = Self {
-            mode: EditableFunctionMode::Expression,
-            expression: expression.to_owned(),
-            ..Default::default()
-        };
-        s.update();
-        s
+    fn expression_mut(&mut self) -> Option<&mut String> {
+        Some(&mut self.expression)
     }
 
-    pub fn points(&self) -> &Vec<(f64, f64)> {
-        &self.points
-    }
-
-    pub fn expression_err(&self) -> Option<&meval::Error> {
+    fn expression_err(&self) -> Option<&meval::Error> {
         self.expr_result
             .as_ref()
             .and_then(|(e, _)| e.as_ref().err())
     }
 
-    pub fn update(&mut self) {
-        if matches!(self.mode, EditableFunctionMode::Expression)
+    fn update_expression(&mut self) {
+        if matches!(self.mode, EditableFuncMode::Expression)
             && (self.expression.is_empty() != self.expr_result.is_none()
                 || self
                     .expr_result
@@ -72,10 +103,29 @@ impl EditableFunction {
             }
         }
     }
+}
 
-    pub fn value_at(&self, x: f64, clamp: FnClamp) -> f64 {
+impl EditableFunc {
+    pub fn with_points(points: Vec<(f64, f64)>) -> Self {
+        Self {
+            points,
+            ..Default::default()
+        }
+    }
+
+    pub fn with_expression(expression: &str) -> Self {
+        let mut s = Self {
+            mode: EditableFuncMode::Expression,
+            expression: expression.to_owned(),
+            ..Default::default()
+        };
+        s.update_expression();
+        s
+    }
+
+    pub(super) fn value_at_clamped(&self, x: f64, clamp: FnClamp) -> f64 {
         match self.mode {
-            EditableFunctionMode::Points => {
+            EditableFuncMode::Points => {
                 let i = self.find_segment(x);
                 if i == 0 {
                     if let Some(first2) = self.points.first_chunk::<2>() {
@@ -95,7 +145,7 @@ impl EditableFunction {
                     Self::value_at_line(self.points[i - 1], self.points[i], x)
                 }
             }
-            EditableFunctionMode::Expression => self
+            EditableFuncMode::Expression => self
                 .expr_result
                 .as_ref()
                 .and_then(|(e, _)| e.as_ref().ok())
@@ -104,48 +154,64 @@ impl EditableFunction {
         }
     }
 
-    pub fn checked_value_at(&self, x: f64, clamp: FnClamp) -> Option<f64> {
-        let v = self.value_at(x, clamp);
+    pub(super) fn checked_value_at_clamped(&self, x: f64, clamp: FnClamp) -> Option<f64> {
+        let v = self.value_at_clamped(x, clamp);
         if v.is_finite() { Some(v) } else { None }
     }
 
-    pub fn insert_point(&mut self, point: (f64, f64), clamp: FnClamp) {
-        self.points.insert(self.find_segment(point.0), clamp(point));
+    pub(super) fn insert_point_clamped(
+        &mut self,
+        pos: (f64, f64),
+        clamp: FnClamp,
+    ) -> (usize, (f64, f64)) {
+        let pos = clamp(pos);
+        let index = self.find_segment(pos.0);
+        self.points.insert(index, pos);
+        (index, pos)
     }
 
-    pub fn insert_point_by_index(&mut self, index: usize, clamp: FnClamp) {
+    pub(super) fn insert_point_by_index_clamped(
+        &mut self,
+        index: usize,
+        clamp: FnClamp,
+    ) -> (usize, (f64, f64)) {
         if index == 0 {
             if let Some(p) = self.points.first_chunk::<2>() {
                 let x0 = p[0].0;
                 let x1 = p[1].0;
-                self.split_segment(x0 - (x1 - x0), clamp);
+                self.split_segment_clamped(x0 - (x1 - x0), clamp)
             } else if let Some(p) = self.points.first() {
-                self.split_segment(p.0 - p.0.abs() * 0.2, clamp);
+                self.split_segment_clamped(p.0 - p.0.abs() * 0.2, clamp)
+            } else {
+                panic!("EditableFunc has no point")
             }
         } else if index >= self.points.len() {
             if let Some(p) = self.points.last_chunk::<2>() {
                 let x0 = p[0].0;
                 let x1 = p[1].0;
-                self.split_segment(x0 + 2.0 * (x1 - x0), clamp);
+                self.split_segment_clamped(x0 + 2.0 * (x1 - x0), clamp)
             } else if let Some(p) = self.points.last() {
-                self.split_segment(p.0 + p.0.abs() * 0.2, clamp);
+                self.split_segment_clamped(p.0 + p.0.abs() * 0.2, clamp)
+            } else {
+                panic!("EditableFunc has no point")
             }
         } else if let (Some(p0), Some(p1)) = (self.points.get(index - 1), self.points.get(index)) {
-            self.split_segment((p0.0 + p1.0) / 2.0, clamp);
+            self.split_segment_clamped((p0.0 + p1.0) / 2.0, clamp)
+        } else {
+            panic!("EditableFunc has no point")
         }
     }
 
-    pub fn split_segment(&mut self, x: f64, clamp: FnClamp) {
-        self.insert_point((x, self.value_at(x, clamp)), clamp);
+    pub(super) fn split_segment_clamped(&mut self, x: f64, clamp: FnClamp) -> (usize, (f64, f64)) {
+        self.insert_point_clamped((x, self.value_at_clamped(x, clamp)), clamp)
     }
 
-    pub fn remove_point(&mut self, index: usize) {
-        if self.points.len() >= 2 {
-            self.points.remove(index);
-        }
-    }
-
-    pub fn move_point_to(&mut self, index: usize, mut pos: (f64, f64), clamp: FnClamp) {
+    pub(super) fn move_point_to_clamped(
+        &mut self,
+        index: usize,
+        mut pos: (f64, f64),
+        clamp: FnClamp,
+    ) -> Option<(f64, f64)> {
         if let Some(left) = index.checked_sub(1).and_then(|l| self.points.get(l)) {
             pos.0 = pos.0.max(left.0);
         }
@@ -155,6 +221,9 @@ impl EditableFunction {
         pos = clamp(pos);
         if let Some(point) = self.points.get_mut(index) {
             *point = pos;
+            Some(pos)
+        } else {
+            None
         }
     }
 
@@ -184,62 +253,3 @@ impl EditableFunction {
         (y1 - y0) / (x1 - x0) * (x - x0) + y0
     }
 }
-
-pub type FnClamp = fn((f64, f64)) -> (f64, f64);
-
-/*
-#[derive(Debug, Default, Clone, Copy, PartialEq, serde::Deserialize, serde::Serialize)]
-pub struct Bounds {
-    min_x: Option<f64>,
-    max_x: Option<f64>,
-    min_y: Option<f64>,
-    max_y: Option<f64>,
-}
-
-impl Bounds {
-    pub const POSITIVE: Self = Self {
-        min_x: Some(0.0),
-        max_x: None,
-        min_y: Some(0.0),
-        max_y: None,
-    };
-
-    pub fn new(
-        min_x: Option<f64>,
-        max_x: Option<f64>,
-        min_y: Option<f64>,
-        max_y: Option<f64>,
-    ) -> Self {
-        Self {
-            min_x,
-            max_x,
-            min_y,
-            max_y,
-        }
-    }
-
-    pub fn clamp_x(&self, mut x: f64) -> f64 {
-        if let Some(max) = self.max_x {
-            x = x.min(max);
-        }
-        if let Some(min) = self.min_x {
-            x = x.max(min);
-        }
-        x
-    }
-
-    pub fn clamp_y(&self, mut y: f64) -> f64 {
-        if let Some(max) = self.max_y {
-            y = y.min(max);
-        }
-        if let Some(min) = self.min_y {
-            y = y.max(min);
-        }
-        y
-    }
-
-    pub fn clamp(&self, point: (f64, f64)) -> (f64, f64) {
-        (self.clamp_x(point.0), self.clamp_y(point.1))
-    }
-}
-*/

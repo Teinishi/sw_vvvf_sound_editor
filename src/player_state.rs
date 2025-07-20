@@ -1,5 +1,6 @@
 use crate::{
     audio_player::{AudioOutput, AudioSource, ResampledLoopAudio},
+    func_edit::FuncEdit as _,
     preference::Preference,
     state::{AudioEntryId, State, TrainPerformance},
 };

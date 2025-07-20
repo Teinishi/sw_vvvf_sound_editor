@@ -1,6 +1,6 @@
 use crate::{
     app::AppAction,
-    editable_function::EditableFunction,
+    func_edit::FuncEdit,
     state::{AudioEntry, AudioEntryId, Cursor},
     ui::PlotAutoColor,
 };
@@ -14,7 +14,7 @@ use std::sync::Arc;
 const MARKER_RADIUS: f32 = 8.0;
 
 pub struct PlotEditEntry<'a, T> {
-    pub func: &'a mut EditableFunction,
+    pub func: &'a mut dyn FuncEdit,
     pub color: egui::Color32,
     pub name: String,
     pub id: T,
@@ -22,7 +22,7 @@ pub struct PlotEditEntry<'a, T> {
 }
 
 impl<'a, T> PlotEditEntry<'a, T> {
-    pub fn new(func: &'a mut EditableFunction, color: egui::Color32, name: String, id: T) -> Self {
+    pub fn new<F: FuncEdit>(func: &'a mut F, color: egui::Color32, name: String, id: T) -> Self {
         Self {
             func,
             color,
@@ -105,18 +105,15 @@ impl<T> DraggingPoint<T> {
         }
     }
 
-    fn drag_point(
+    fn drag_point<F: ?Sized + FuncEdit>(
         &self,
-        func: &mut EditableFunction,
+        func: &mut F,
         modifiers: &Modifiers,
         transform: &PlotTransform,
         pointer_plot_pos: PlotPoint,
         grid_data: &PlotGridData,
     ) -> bool {
-        if matches!(
-            func.mode,
-            crate::editable_function::EditableFunctionMode::Points
-        ) {
+        if func.is_mode_points() {
             func.move_point_to(
                 self.index,
                 self.get_drag_point_pos(modifiers, transform, pointer_plot_pos, grid_data),
@@ -220,8 +217,13 @@ impl<T> UiPlotEdit<T> {
             plot_ui.pointer_coordinate()
         });
 
+        let transform = plot_response.transform;
+        let hovered_plot_item = plot_response.hovered_plot_item;
+        let pointer_coordinate = plot_response.inner;
+
         // クリック処理
         let mut clicked = plot_response.response.clicked();
+
         for PlotEditEntry {
             func,
             color: _,
@@ -230,17 +232,15 @@ impl<T> UiPlotEdit<T> {
             gradient_color: _,
         } in entries.iter_mut()
         {
-            let pointer_coordinate = plot_response.inner;
-
             // 点のドラッグ移動を反映
             if let (Some(dragging_point), Some(pointer)) =
                 (self.dragging_point.as_ref(), pointer_coordinate)
             {
                 if id == &dragging_point.id {
                     dragging_point.drag_point(
-                        func,
+                        *func,
                         &ui.ctx().input(|i| i.modifiers),
-                        &plot_response.transform,
+                        &transform,
                         pointer,
                         &grid_data,
                     );
@@ -258,7 +258,7 @@ impl<T> UiPlotEdit<T> {
             // 点の追加
             if clicked && selection.as_ref() == Some(id) {
                 if let Some(pointer) = pointer_coordinate {
-                    let dpos_dvalue = plot_response.transform.dpos_dvalue_y();
+                    let dpos_dvalue = transform.dpos_dvalue_y();
                     if (pointer.y - func.value_at(pointer.x)).abs()
                         < -(MARKER_RADIUS as f64) / dpos_dvalue
                     {
@@ -280,7 +280,7 @@ impl<T> UiPlotEdit<T> {
                 gradient_color: _,
             } in entries.iter_mut()
             {
-                if plot_response.hovered_plot_item == Some(Id::new(name)) {
+                if Some(Id::new(name)) == hovered_plot_item {
                     *selection = Some(id.clone());
                     clicked = false;
                 }
@@ -290,7 +290,7 @@ impl<T> UiPlotEdit<T> {
         // 何もないところをクリックしたとき
         if clicked {
             *selection = None;
-            if let (Some(cursor), Some(pointer)) = (cursor.as_deref_mut(), plot_response.inner) {
+            if let (Some(cursor), Some(pointer)) = (cursor.as_deref_mut(), pointer_coordinate) {
                 cursor.set_spot(pointer.x);
             }
         }
@@ -300,7 +300,7 @@ impl<T> UiPlotEdit<T> {
         &mut self,
         plot_ui: &mut egui_plot::PlotUi<'a>,
         action: &mut AppAction,
-        entries: &'b [PlotEditEntry<'b, T>],
+        entries: &'a [PlotEditEntry<'b, T>],
         selection: &Option<T>,
         mouse_down: bool,
     ) -> Option<(T, usize)>
@@ -333,44 +333,44 @@ impl<T> UiPlotEdit<T> {
         {
             let is_selected = selection.as_ref() == Some(id);
 
-            let marker = if is_selected
-                && matches!(
-                    func.mode,
-                    crate::editable_function::EditableFunctionMode::Points
-                ) {
-                // マーカークリック・ドラッグ
-                for (j, p) in func.points().iter().enumerate() {
-                    let screen_pos = plot_ui.screen_from_plot(PlotPoint::new(p.0, p.1));
-                    if let (Some(pointer_screen_pos), Some(pointer_plot_pos)) =
-                        (pointer_screen_pos, plot_ui.pointer_coordinate())
-                    {
-                        if pointer_screen_pos.distance_sq(screen_pos) < MARKER_RADIUS.powi(2) {
-                            if mouse_down {
-                                self.dragging_point = Some(DraggingPoint::new(
-                                    id.clone(),
-                                    j,
-                                    pointer_plot_pos,
-                                    screen_pos,
-                                    pointer_screen_pos,
-                                ));
-                            }
-                            if clicked_secondary {
-                                remove_point = Some((id.clone(), j));
+            let marker = if is_selected && func.is_mode_points() {
+                if let Some(points) = func.points() {
+                    // マーカークリック・ドラッグ
+                    for (j, p) in points.iter().enumerate() {
+                        let screen_pos = plot_ui.screen_from_plot(PlotPoint::new(p.0, p.1));
+                        if let (Some(pointer_screen_pos), Some(pointer_plot_pos)) =
+                            (pointer_screen_pos, plot_ui.pointer_coordinate())
+                        {
+                            if pointer_screen_pos.distance_sq(screen_pos) < MARKER_RADIUS.powi(2) {
+                                if mouse_down {
+                                    self.dragging_point = Some(DraggingPoint::new(
+                                        id.clone(),
+                                        j,
+                                        pointer_plot_pos,
+                                        screen_pos,
+                                        pointer_screen_pos,
+                                    ));
+                                }
+                                if clicked_secondary {
+                                    remove_point = Some((id.clone(), j));
+                                }
                             }
                         }
                     }
-                }
 
-                // マーカー描画
-                let points: Vec<[f64; 2]> = func.points().iter().map(|p| [p.0, p.1]).collect();
-                let marker = Points::new(format!("{name} marker"), points)
-                    .highlight(true)
-                    .radius(MARKER_RADIUS / 2f32.sqrt())
-                    .shape(egui_plot::MarkerShape::Diamond)
-                    .color(*color)
-                    .filled(false)
-                    .allow_hover(false);
-                Some(marker)
+                    // マーカー描画
+                    let points: Vec<[f64; 2]> = points.iter().map(|p| [p.0, p.1]).collect();
+                    let marker = Points::new(format!("{name} marker"), points)
+                        .highlight(true)
+                        .radius(MARKER_RADIUS / 2f32.sqrt())
+                        .shape(egui_plot::MarkerShape::Diamond)
+                        .color(*color)
+                        .filled(false)
+                        .allow_hover(false);
+                    Some(marker)
+                } else {
+                    None
+                }
             } else {
                 None
             };
@@ -378,7 +378,7 @@ impl<T> UiPlotEdit<T> {
             // 線描画
             let mut line = Line::new(
                 name.clone(),
-                PlotPoints::from_explicit_callback(move |x| func.value_at(x), .., width_usize),
+                PlotPoints::from_explicit_callback(|x| func.value_at(x), .., width_usize),
             )
             .width(2.0)
             .highlight(is_selected);
@@ -506,7 +506,10 @@ impl Default for PlotGridData {
 }
 
 impl PlotGridData {
-    fn apply<'a>(&'a self, plot: Plot<'a>) -> Plot<'a> {
+    fn apply<'a, 'b>(&'a self, plot: Plot<'b>) -> Plot<'b>
+    where
+        'a: 'b,
+    {
         plot.x_grid_spacer(&self.x_spacer)
             .y_grid_spacer(&self.y_spacer)
             .grid_spacing(self.spacing)

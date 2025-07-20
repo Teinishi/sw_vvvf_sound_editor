@@ -1,4 +1,4 @@
-use crate::editable_function::{Bounds, EditableFunction};
+use crate::func_edit::{EditableFunc, EditablePositiveFunc, EditableZeroOneFunc, FuncEdit as _};
 use std::path::PathBuf;
 
 #[derive(Debug, Default, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
@@ -42,19 +42,16 @@ pub type AudioEntryId = PathBuf;
 #[derive(Debug, Default, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct AudioEntry {
     path: PathBuf,
-    volume_function: EditableFunction,
-    pitch_function: EditableFunction,
+    volume_function: EditableZeroOneFunc,
+    pitch_function: EditablePositiveFunc,
 }
 
 impl AudioEntry {
     pub fn new(path: PathBuf) -> Self {
         Self {
             path,
-            volume_function: EditableFunction::with_points(
-                vec![(40.0, 0.5)],
-                Bounds::new(Some(0.0), None, Some(0.0), Some(1.0)),
-            ),
-            pitch_function: EditableFunction::with_points(vec![(40.0, 1.0)], Bounds::POSITIVE),
+            volume_function: EditableFunc::with_points(vec![(40.0, 0.5)]).into(),
+            pitch_function: EditableFunc::with_points(vec![(40.0, 1.0)]).into(),
         }
     }
 
@@ -70,51 +67,48 @@ impl AudioEntry {
             .map(String::from)
     }
 
-    pub fn volume(&self) -> &EditableFunction {
+    pub fn volume(&self) -> &EditableZeroOneFunc {
         &self.volume_function
     }
 
-    pub fn pitch(&self) -> &EditableFunction {
+    pub fn pitch(&self) -> &EditablePositiveFunc {
         &self.pitch_function
     }
 
-    pub fn volume_mut(&mut self) -> &mut EditableFunction {
+    pub fn volume_mut(&mut self) -> &mut EditableZeroOneFunc {
         &mut self.volume_function
     }
 
-    pub fn pitch_mut(&mut self) -> &mut EditableFunction {
+    pub fn pitch_mut(&mut self) -> &mut EditablePositiveFunc {
         &mut self.pitch_function
     }
 }
 
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct TrainPerformance {
-    pub acceleration: EditableFunction,
+    pub acceleration: EditablePositiveFunc,
     pub power_steps: u8,
     pub brake_acceleration: f64,
     pub brake_steps: u8,
-    pub drag: EditableFunction,
+    pub drag: EditablePositiveFunc,
 }
 
 impl Default for TrainPerformance {
     fn default() -> Self {
         Self {
-            acceleration: EditableFunction::with_expression(
-                "min(2.5,90/x,(80/x)^2)",
-                Bounds::POSITIVE,
-            ),
+            acceleration: EditableFunc::with_expression("min(2.5,90/x,(80/x)^2)").into(),
             power_steps: 5,
             brake_acceleration: 4.2,
             brake_steps: 8,
-            drag: EditableFunction::with_expression("x/500", Bounds::POSITIVE),
+            drag: EditableFunc::with_expression("x/500").into(),
         }
     }
 }
 
 impl TrainPerformance {
     pub fn update(&mut self) {
-        self.acceleration.update();
-        self.drag.update();
+        self.acceleration.update_expression();
+        self.drag.update_expression();
     }
 }
 
