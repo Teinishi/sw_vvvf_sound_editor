@@ -23,11 +23,6 @@ pub struct MainApp {
     preference: Preference,
     #[serde(skip)]
     player_state: PlayerState,
-    show_audio_files_panel: bool,
-    show_point_edit_panel: bool,
-    show_performance_window: bool,
-    show_setting_window: bool,
-    #[serde(skip)]
     ui_menu_bar: UiMenuBar,
     #[serde(skip)]
     ui_audio_files: UiAudioFiles,
@@ -58,11 +53,7 @@ impl Default for MainApp {
             state_file: None,
             preference: Preference::default(),
             player_state: PlayerState::default(),
-            show_audio_files_panel: true,
-            show_point_edit_panel: true,
-            show_performance_window: false,
-            show_setting_window: false,
-            ui_menu_bar: UiMenuBar,
+            ui_menu_bar: UiMenuBar::default(),
             ui_audio_files: UiAudioFiles,
             ui_point_edit: UiPitchVolumeEdit,
             ui_pitch_volume_plots: UiPitchVolumePlots::default(),
@@ -126,15 +117,8 @@ impl eframe::App for MainApp {
         let mut action = AppAction::new(&self.undoer, &self.state);
 
         TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            self.ui_menu_bar.ui(
-                ui,
-                &mut action,
-                self.state_file.is_some(),
-                &mut self.show_audio_files_panel,
-                &mut self.show_point_edit_panel,
-                &mut self.show_performance_window,
-                &mut self.show_setting_window,
-            );
+            self.ui_menu_bar
+                .ui(ui, &mut action, self.state_file.is_some());
         });
 
         /*if let Some(path) = &self.work_folder {
@@ -147,7 +131,7 @@ impl eframe::App for MainApp {
             }
         }*/
 
-        if self.show_audio_files_panel {
+        if self.ui_menu_bar.show_audio_files_panel {
             SidePanel::left("audio_file_panel")
                 .frame(Frame::side_top_panel(&ctx.style()).inner_margin(8.0))
                 .default_width(190.0)
@@ -160,7 +144,7 @@ impl eframe::App for MainApp {
                 });
         }
 
-        if self.show_point_edit_panel {
+        if self.ui_menu_bar.show_point_edit_panel {
             SidePanel::left("point_edit_panel")
                 .frame(Frame::side_top_panel(&ctx.style()).inner_margin(8.0))
                 .default_width(190.0)
@@ -197,12 +181,15 @@ impl eframe::App for MainApp {
         // ウィンドウ
         self.ui_performance_window.show(
             ctx,
-            &mut self.show_performance_window,
+            &mut self.ui_menu_bar.show_performance_window,
             &mut action,
             &mut self.state.train_performance,
         );
-        self.ui_setting_window
-            .show(ctx, &mut self.show_setting_window, &mut self.state);
+        self.ui_setting_window.show(
+            ctx,
+            &mut self.ui_menu_bar.show_setting_window,
+            &mut self.state,
+        );
 
         // 毎フレーム更新処理
         self.state.train_performance.update();

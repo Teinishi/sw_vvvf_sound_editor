@@ -4,21 +4,27 @@ use crate::{
 };
 use egui::{Button, MenuBar, Sides};
 
-#[derive(Debug, Default)]
-pub struct UiMenuBar;
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
+pub struct UiMenuBar {
+    pub show_audio_files_panel: bool,
+    pub show_point_edit_panel: bool,
+    pub show_performance_window: bool,
+    pub show_setting_window: bool,
+}
+
+impl Default for UiMenuBar {
+    fn default() -> Self {
+        Self {
+            show_audio_files_panel: true,
+            show_point_edit_panel: true,
+            show_performance_window: false,
+            show_setting_window: false,
+        }
+    }
+}
 
 impl UiMenuBar {
-    #[expect(clippy::unused_self)]
-    pub fn ui(
-        &self,
-        ui: &mut egui::Ui,
-        action: &mut AppAction,
-        enable_save: bool,
-        show_audio_files_panel: &mut bool,
-        show_point_edit_panel: &mut bool,
-        show_performance_window: &mut bool,
-        show_setting_window: &mut bool,
-    ) {
+    pub fn ui(&mut self, ui: &mut egui::Ui, action: &mut AppAction, enable_save: bool) {
         MenuBar::new().ui(ui, |ui| {
             Sides::new().show(
                 ui,
@@ -64,12 +70,15 @@ impl UiMenuBar {
 
                     ui.separator();
 
-                    ui.toggle_value(show_audio_files_panel, UiAudioFiles::TITLE);
-                    ui.toggle_value(show_point_edit_panel, UiPitchVolumeEdit::TITLE);
-                    ui.toggle_value(show_performance_window, UiPerformanceWindow::TITLE);
+                    ui.toggle_value(&mut self.show_audio_files_panel, UiAudioFiles::TITLE);
+                    ui.toggle_value(&mut self.show_point_edit_panel, UiPitchVolumeEdit::TITLE);
+                    ui.toggle_value(
+                        &mut self.show_performance_window,
+                        UiPerformanceWindow::TITLE,
+                    );
                 },
                 |ui| {
-                    ui.toggle_value(show_setting_window, UiSettingWindow::TITLE);
+                    ui.toggle_value(&mut self.show_setting_window, UiSettingWindow::TITLE);
                 },
             )
         });
