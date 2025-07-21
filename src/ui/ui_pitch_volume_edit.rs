@@ -26,7 +26,7 @@ impl UiPitchVolumeEdit {
 
         if let Some(entry) = selection
             .as_ref()
-            .and_then(|path| entries.iter_mut().find(|e| e.path() == path))
+            .and_then(|id| entries.iter_mut().find(|e| e.id() == id))
         {
             UiFunctionEdit::new("Pitch", ("Speed", "Pitch")).ui(
                 ui,
@@ -39,13 +39,6 @@ impl UiPitchVolumeEdit {
             UiFunctionEdit::new("Volume", ("Speed", "Volume"))
                 .y_percentage(true)
                 .ui(ui, ui.id().with("volume"), entry.volume_mut());
-
-            // コメント外してファイルパスを表示
-            /* ui.with_layout(Layout::bottom_up(egui::Align::Min), |ui| {
-                if let Some(path) = entry.path().to_str() {
-                    ui.weak(path);
-                }
-            }); */
         }
     }
 
@@ -70,24 +63,21 @@ impl UiPitchVolumeEdit {
 
                 let checked = selection
                     .as_ref()
-                    .map(|path| path == entry.path())
+                    .map(|id| id == entry.id())
                     .unwrap_or(false);
 
                 if ui
                     .add_sized(
                         ui.available_size_before_wrap(),
-                        Button::selectable(
-                            checked,
-                            (entry.name().unwrap_or_default(), egui::Atom::grow()),
-                        )
-                        .truncate(),
+                        Button::selectable(checked, (entry.name().to_string(), egui::Atom::grow()))
+                            .truncate(),
                     )
                     .clicked()
                 {
                     if checked {
                         *selection = None;
                     } else {
-                        *selection = Some(entry.path().clone());
+                        *selection = Some(*entry.id());
                     }
                     action.add_undo();
                 }

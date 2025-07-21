@@ -1,9 +1,6 @@
 use super::{UiPlotEdit, aixs_hint_formatter_percentage};
 use crate::{
-    app::AppAction,
-    player_state::PlayerState,
-    state::{AudioEntryId, State},
-    ui::ui_plot_edit::PlotEditEntry,
+    app::AppAction, player_state::PlayerState, state::{AudioEntryId, State}, ui::ui_plot_edit::PlotEditEntry,
 };
 use egui::{Color32, Sides};
 use egui_plot::{AxisHints, Plot, VLine};
@@ -114,7 +111,6 @@ impl UiPitchVolumePlots {
             egui::Theme::Dark => Color32::LIGHT_GRAY,
         };
 
-        let mut selection = state.selection.clone();
         let mut reset_viewport = false;
 
         Sides::new().show(
@@ -129,7 +125,7 @@ impl UiPitchVolumePlots {
             ui,
             action,
             &mut PlotEditEntry::pitch(&mut state.audio_entries, &state.selection),
-            &mut selection,
+            &mut state.selection,
             &mut None,
             || {
                 Plot::new("plot_edit_volume")
@@ -160,7 +156,7 @@ impl UiPitchVolumePlots {
             ui,
             action,
             &mut PlotEditEntry::volume(&mut state.audio_entries),
-            &mut selection,
+            &mut state.selection,
             &mut None,
             || {
                 Plot::new("plot_edit_pitch")
@@ -190,7 +186,5 @@ impl UiPitchVolumePlots {
                 }
             },
         );
-
-        state.selection = selection;
     }
 }

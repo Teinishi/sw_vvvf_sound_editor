@@ -1,9 +1,10 @@
 use std::{collections::VecDeque, path::PathBuf};
 
 use crate::{
+    audio_player::AudioOutput,
     player_state::PlayerState,
     preference::Preference,
-    state::State,
+    state::{FileRegistory, State},
     ui::{
         UiAudioFiles, UiMenuBar, UiPerformanceWindow, UiPitchVolumeEdit, UiPitchVolumePlots,
         UiPlayer, UiSettingWindow,
@@ -14,8 +15,12 @@ use egui::{
     TopBottomPanel, util::undoer::Undoer, vec2,
 };
 
-#[derive(Debug, serde::Deserialize, serde::Serialize)]
+#[derive(serde::Deserialize, serde::Serialize)]
 pub struct MainApp {
+    #[serde(skip)]
+    registory: FileRegistory,
+    #[serde(skip)]
+    audio_output: AudioOutput,
     #[serde(skip)]
     undoer: Undoer<State>,
     state: State,
@@ -45,6 +50,8 @@ pub struct MainApp {
 impl Default for MainApp {
     fn default() -> Self {
         Self {
+            registory: FileRegistory::default(),
+            audio_output: AudioOutput::default(),
             undoer: Undoer::with_settings(egui::util::undoer::Settings {
                 stable_time: 0.5,
                 ..Default::default()
@@ -104,21 +111,19 @@ impl MainApp {
 
     fn init(&mut self) {
         self.player_state.check(&self.state.train_performance);
-        self.player_state.play().expect("Failed to play audio.");
-    }
-}
-
-impl eframe::App for MainApp {
-    fn save(&mut self, storage: &mut dyn eframe::Storage) {
-        eframe::set_value(storage, eframe::APP_KEY, self);
+        self.registory
+            .play_audio(&mut self.audio_output)
+            .expect("Failed to play audio.");
     }
 
-    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        let mut action = AppAction::new(&self.undoer, &self.state);
+    fn add_error_modal(&mut self, err: anyhow::Error) {
+        self.error_modals.push_back((self.next_modal_id, err));
+        self.next_modal_id += 1;
+    }
 
+    fn ui(&mut self, ctx: &egui::Context, frame: &eframe::Frame, action: &mut AppAction) {
         TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            self.ui_menu_bar
-                .ui(ui, &mut action, self.state_file.is_some());
+            self.ui_menu_bar.ui(ui, action, self.state_file.is_some());
         });
 
         /*if let Some(path) = &self.work_folder {
@@ -139,8 +144,16 @@ impl eframe::App for MainApp {
                 .resizable(true)
                 .show(ctx, |ui| {
                     ui.style_mut().spacing.item_spacing = vec2(8.0, 8.0);
-                    self.ui_audio_files
-                        .ui(ui, Some(frame), &mut action, &mut self.state);
+                    let errors = self.ui_audio_files.ui(
+                        ui,
+                        Some(frame),
+                        action,
+                        &mut self.registory,
+                        &mut self.state,
+                    );
+                    for err in errors {
+                        self.add_error_modal(err);
+                    }
                 });
         }
 
@@ -155,7 +168,7 @@ impl eframe::App for MainApp {
                         ui.style_mut().spacing.item_spacing = vec2(8.0, 8.0);
                         self.ui_point_edit.ui(
                             ui,
-                            &mut action,
+                            action,
                             &mut self.state.audio_entries,
                             &mut self.state.selection,
                         );
@@ -175,14 +188,14 @@ impl eframe::App for MainApp {
             .show(ctx, |ui| {
                 ui.style_mut().spacing.item_spacing = vec2(8.0, 8.0);
                 self.ui_pitch_volume_plots
-                    .ui(ui, &mut action, &mut self.state, &self.player_state);
+                    .ui(ui, action, &mut self.state, &self.player_state);
             });
 
         // ウィンドウ
         self.ui_performance_window.show(
             ctx,
             &mut self.ui_menu_bar.show_performance_window,
-            &mut action,
+            action,
             &mut self.state.train_performance,
         );
         self.ui_setting_window.show(
@@ -190,22 +203,40 @@ impl eframe::App for MainApp {
             &mut self.ui_menu_bar.show_setting_window,
             &mut self.state,
         );
+    }
+}
 
-        // 毎フレーム更新処理
+impl eframe::App for MainApp {
+    fn save(&mut self, storage: &mut dyn eframe::Storage) {
+        eframe::set_value(storage, eframe::APP_KEY, self);
+    }
+
+    fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        let mut action = AppAction::new(&self.undoer, &self.state);
+
+        self.ui(ctx, frame, &mut action);
+
+        // 毎フレームの更新処理
         self.state.train_performance.update();
         self.player_state.update(ctx, &self.state, &self.preference);
+        let errors = self
+            .registory
+            .update(&mut self.state, &self.player_state, &self.preference);
+        for err in errors {
+            self.add_error_modal(err);
+        }
 
         // action を実行、エラーをモーダルで表示
         action.shortcut(ctx);
         if let Err(err) = action.exec(
             ctx,
             Some(frame),
+            &mut self.registory,
             &mut self.state,
             &mut self.undoer,
             &mut self.state_file,
         ) {
-            self.error_modals.push_back((self.next_modal_id, err));
-            self.next_modal_id += 1;
+            self.add_error_modal(err);
         }
         if let Some((id, err)) = self.error_modals.front() {
             let modal = Modal::new(Id::new(format!("modal_{id}"))).show(ctx, |ui| {
@@ -277,16 +308,16 @@ impl AppAction {
         }
     }
 
-    fn exec<T, W>(
+    fn exec<W>(
         &self,
         ctx: &egui::Context,
         parent: Option<&W>,
-        state: &mut T,
-        undoer: &mut Undoer<T>,
+        registory: &mut FileRegistory,
+        state: &mut State,
+        undoer: &mut Undoer<State>,
         state_filepath: &mut Option<PathBuf>,
     ) -> anyhow::Result<()>
     where
-        T: Clone + PartialEq + for<'a> serde::Deserialize<'a> + serde::Serialize + Default,
         W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle,
     {
         // エラーにならないものを先にやっておく
@@ -316,14 +347,14 @@ impl AppAction {
         }
         if self.new_project {
             // todo: 確認ダイアログ
-            *state = T::default();
+            *state = State::default();
         }
 
         // エラーになりうるもの
         #[cfg(not(target_arch = "wasm32"))]
         if self.open {
             if let Some(path) = crate::file_dialog::open_json_dialog(parent) {
-                Self::open_file(path, state, state_filepath)?;
+                Self::open_file(path, registory, state, state_filepath)?;
             }
         }
         let mut save_as = self.save_as;
@@ -346,17 +377,16 @@ impl AppAction {
     }
 
     #[cfg(not(target_arch = "wasm32"))]
-    fn open_file<T>(
+    fn open_file(
         path: PathBuf,
-        state: &mut T,
+        registory: &mut FileRegistory,
+        state: &mut State,
         state_filepath: &mut Option<PathBuf>,
-    ) -> anyhow::Result<()>
-    where
-        T: for<'a> serde::Deserialize<'a>,
-    {
+    ) -> anyhow::Result<()> {
         use std::fs::File;
 
         *state = serde_json::from_reader(File::open(&path)?)?;
+        registory.assign_ids(state);
         *state_filepath = Some(path);
         Ok(())
     }

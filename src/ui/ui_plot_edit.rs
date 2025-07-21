@@ -1,7 +1,7 @@
 use crate::{
     app::AppAction,
     func_edit::FuncEdit,
-    state::{AudioEntry, AudioEntryId, Cursor},
+    state::{AudioEntry, AudioEntryId, SelectionCursor},
     ui::PlotAutoColor,
 };
 use egui::{Color32, Id, Modifiers, Pos2, Rangef, Response, Stroke};
@@ -42,7 +42,7 @@ impl<'a> PlotEditEntry<'a, AudioEntryId> {
             .iter_mut()
             .enumerate()
             .map(|(i, e)| {
-                let id = e.path().clone();
+                let id = *e.id();
                 let is_selected = selection.as_ref() == Some(&id);
                 let color = PlotAutoColor::get_color(i);
                 let volume_fn = e.volume().clone();
@@ -68,7 +68,7 @@ impl<'a> PlotEditEntry<'a, AudioEntryId> {
             .iter_mut()
             .enumerate()
             .map(|(i, e)| {
-                let id = e.path().clone();
+                let id = *e.id();
                 Self {
                     func: e.volume_mut(),
                     color: PlotAutoColor::get_color(i),
@@ -177,7 +177,7 @@ impl<T> UiPlotEdit<T> {
         action: &mut AppAction,
         entries: &'a mut [PlotEditEntry<'a, T>],
         selection: &mut Option<T>,
-        cursor: &mut Option<&mut Cursor>,
+        cursor: &mut Option<&mut SelectionCursor>,
         init_plot: impl FnOnce() -> Plot<'static>,
         inside_plot: impl FnOnce(&mut egui_plot::PlotUi<'_>),
     ) where
@@ -398,7 +398,7 @@ impl<T> UiPlotEdit<T> {
         remove_point
     }
 
-    fn show_cursor(plot_ui: &mut egui_plot::PlotUi<'_>, cursor: &Cursor) {
+    fn show_cursor(plot_ui: &mut egui_plot::PlotUi<'_>, cursor: &SelectionCursor) {
         let selection_visuals = plot_ui.ctx().style().visuals.selection;
 
         if let Some((start, end)) = cursor.range() {
@@ -442,7 +442,7 @@ impl<T> UiPlotEdit<T> {
 
     fn plot_drag(
         plot_ui: &mut egui_plot::PlotUi<'_>,
-        cursor: &mut Option<&mut Cursor>,
+        cursor: &mut Option<&mut SelectionCursor>,
         pan: bool,
         mouse_down: bool,
     ) -> bool {

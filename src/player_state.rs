@@ -1,36 +1,16 @@
 use crate::{
-    audio_player::{AudioOutput, AudioSource, ResampledLoopAudio},
     func_edit::FuncEdit as _,
     preference::Preference,
-    state::{AudioEntryId, State, TrainPerformance},
+    state::{AudioEntry, State, TrainPerformance},
 };
 use egui::{Context, Key, Modifiers};
-use lewton::inside_ogg::OggStreamReader;
-use std::{
-    collections::{HashMap, HashSet},
-    fs::File,
-    path::PathBuf,
-    sync::{Arc, Mutex},
-    time::Instant,
-};
-
-fn new_audio_source(
-    path: &PathBuf,
-    config: &cpal::StreamConfig,
-) -> anyhow::Result<ResampledLoopAudio> {
-    let file = File::open(path)?;
-    let mut stream = OggStreamReader::new(file)?;
-    let source = AudioSource::from_ogg(&mut stream, config.channels as usize)?;
-    ResampledLoopAudio::new(source, config.sample_rate.0, 256)
-}
+use std::time::Instant;
 
 pub struct PlayerState {
     pub master_controller: i32,
     pub speed: f64,
     smoothed_acceleration: f64,
     last_frame_time: Option<Instant>,
-    audio_output: AudioOutput,
-    audio_sources: Arc<Mutex<HashMap<AudioEntryId, anyhow::Result<ResampledLoopAudio>>>>,
 }
 
 impl std::fmt::Debug for PlayerState {
@@ -57,25 +37,11 @@ impl Default for PlayerState {
             speed: 0.0,
             smoothed_acceleration: 0.0,
             last_frame_time: None,
-            audio_output: AudioOutput::default(),
-            audio_sources: Default::default(),
         }
     }
 }
 
 impl PlayerState {
-    pub fn play(&mut self) -> anyhow::Result<()> {
-        let sources = self.audio_sources.clone();
-
-        self.audio_output.play(move |data| {
-            if let Ok(mut sources) = sources.lock() {
-                for entry in sources.values_mut().flatten() {
-                    entry.write_data_additive(data);
-                }
-            }
-        })
-    }
-
     pub fn check(&mut self, train_performance: &TrainPerformance) {
         self.master_controller = self.master_controller.clamp(
             -(train_performance.brake_steps as i32),
@@ -83,7 +49,17 @@ impl PlayerState {
         );
     }
 
-    pub fn update(&mut self, ctx: &Context, state: &State, preference: &Preference) {
+    pub fn get_volume_pitch(&self, entry: &AudioEntry, preference: &Preference) -> (f32, f32) {
+        let volume = if self.master_controller != 0 && self.speed > 1e-6 {
+            entry.volume().value_at(self.speed)
+        } else {
+            0.0
+        };
+        let pitch = entry.pitch().value_at(self.speed);
+        (preference.global_volume * volume as f32, pitch as f32)
+    }
+
+    pub fn update(&mut self, ctx: &Context, state: &State, _preference: &Preference) {
         let performance = &state.train_performance;
 
         // マスコン キー入力
@@ -142,38 +118,6 @@ impl PlayerState {
             self.speed += *sa * dt;
         }
         self.speed = self.speed.max(0.0);
-
-        // 音声データの過不足チェック、音量ピッチ更新
-        if let Ok(mut sources) = self.audio_sources.lock() {
-            let mut to_remove: HashSet<AudioEntryId> = sources.keys().cloned().collect();
-
-            if let Ok(config) = self.audio_output.config() {
-                let config = &config.into();
-                for entry in &state.audio_entries {
-                    let path = entry.path();
-                    to_remove.remove(path);
-
-                    if !sources.contains_key(path) {
-                        sources.insert(path.clone(), new_audio_source(path, config));
-                    }
-                    if let Some(Ok(source)) = sources.get_mut(path) {
-                        // 各音声の音量とピッチを更新
-                        let volume = if self.master_controller != 0 && self.speed > 1e-6 {
-                            entry.volume().value_at(self.speed)
-                        } else {
-                            0.0
-                        };
-                        let pitch = entry.pitch().value_at(self.speed);
-                        source.set_volume_pitch(
-                            preference.global_volume * volume as f32,
-                            pitch as f32,
-                        );
-                    }
-                }
-            }
-
-            sources.retain(|k, _| !to_remove.contains(k));
-        }
 
         self.last_frame_time = Some(std::time::Instant::now());
         ctx.request_repaint();
