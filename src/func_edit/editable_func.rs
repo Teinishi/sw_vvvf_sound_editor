@@ -10,10 +10,20 @@ pub enum EditableFuncMode {
 
 type FnClamp = fn((f64, f64)) -> (f64, f64);
 
+fn points_default() -> Vec<(f64, f64)> {
+    vec![(0.0, 0.0)]
+}
+
+fn is_points_default(points: &[(f64, f64)]) -> bool {
+    points == points_default()
+}
+
 #[derive(Debug, Clone, PartialEq, serde::Deserialize, serde::Serialize)]
 pub struct EditableFunc {
     pub mode: EditableFuncMode,
+    #[serde(skip_serializing_if = "is_points_default", default = "points_default")]
     points: Vec<(f64, f64)>,
+    #[serde(skip_serializing_if = "String::is_empty")]
     pub expression: String,
     #[serde(skip)]
     expr_result: Option<(Result<meval::Expr, meval::Error>, String)>,
@@ -23,7 +33,7 @@ impl Default for EditableFunc {
     fn default() -> Self {
         Self {
             mode: EditableFuncMode::Points,
-            points: vec![(0.0, 0.0)],
+            points: points_default(),
             expression: String::new(),
             expr_result: None,
         }

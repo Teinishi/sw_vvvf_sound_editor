@@ -361,15 +361,19 @@ impl AppAction {
         #[cfg(not(target_arch = "wasm32"))]
         if self.save {
             if let Some(path) = &state_filepath {
-                Self::save_file(path.clone(), state, state_filepath)?;
+                use crate::save_load;
+
+                save_load::save_file(path.clone(), registory, state, state_filepath)?;
             } else {
                 save_as = true;
             }
         }
         #[cfg(not(target_arch = "wasm32"))]
         if save_as {
-            if let Some(path) = crate::file_dialog::save_json_dialog(parent) {
-                Self::save_file(path, state, state_filepath)?;
+            if let Some(path) = crate::file_dialog::save_project_dialog(parent) {
+                use crate::save_load;
+
+                save_load::save_file(path, registory, state, state_filepath)?;
             }
         }
 
@@ -387,24 +391,6 @@ impl AppAction {
 
         *state = serde_json::from_reader(File::open(&path)?)?;
         registory.assign_ids(state);
-        *state_filepath = Some(path);
-        Ok(())
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn save_file<T>(
-        path: PathBuf,
-        state: &T,
-        state_filepath: &mut Option<PathBuf>,
-    ) -> anyhow::Result<()>
-    where
-        T: serde::Serialize,
-    {
-        use std::{fs::File, io::Write as _};
-
-        let json = serde_json::to_string(&state)?;
-        let mut file = File::create(&path)?;
-        file.write_all(json.as_bytes())?;
         *state_filepath = Some(path);
         Ok(())
     }

@@ -24,6 +24,10 @@ pub struct FileRegistory {
 }
 
 impl FileRegistory {
+    pub fn raw_data_by_id(&self, id: &AudioEntryId) -> Option<&Vec<u8>> {
+        self.raw_data.get(id)
+    }
+
     pub fn add_file(&mut self, path: PathBuf, state: &mut State) -> anyhow::Result<AudioEntryId> {
         // registoryとstateの両方に同時に追加
         let (raw, result) = self.read_file(&path)?;
