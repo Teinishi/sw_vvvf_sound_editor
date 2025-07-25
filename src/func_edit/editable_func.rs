@@ -23,7 +23,7 @@ pub struct EditableFunc {
     pub mode: EditableFuncMode,
     #[serde(skip_serializing_if = "is_points_default", default = "points_default")]
     points: Vec<(f64, f64)>,
-    #[serde(skip_serializing_if = "String::is_empty")]
+    #[serde(skip_serializing_if = "String::is_empty", default = "String::new")]
     pub expression: String,
     #[serde(skip)]
     expr_result: Option<(Result<meval::Expr, meval::Error>, String)>,

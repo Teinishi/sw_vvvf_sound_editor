@@ -22,6 +22,10 @@ impl State {
         Ok(())
     }
 
+    pub fn get_audio_entry_mut(&mut self, id: &AudioEntryId) -> Option<&mut AudioEntry> {
+        self.audio_entries.iter_mut().find(|e| e.id() == id)
+    }
+
     pub fn move_audio_entry(&mut self, from_idx: usize, to_idx: usize) {
         let item = self.remove_audio_entry(from_idx);
         self.audio_entries

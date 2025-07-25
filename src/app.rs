@@ -353,17 +353,15 @@ impl AppAction {
         // エラーになりうるもの
         #[cfg(not(target_arch = "wasm32"))]
         if self.open {
-            if let Some(path) = crate::file_dialog::open_json_dialog(parent) {
-                Self::open_file(path, registory, state, state_filepath)?;
+            if let Some(path) = crate::file_dialog::open_project_dialog(parent) {
+                crate::save_load::open_file(path, registory, state, state_filepath)?;
             }
         }
         let mut save_as = self.save_as;
         #[cfg(not(target_arch = "wasm32"))]
         if self.save {
             if let Some(path) = &state_filepath {
-                use crate::save_load;
-
-                save_load::save_file(path.clone(), registory, state, state_filepath)?;
+                crate::save_load::save_file(path.clone(), registory, state, state_filepath)?;
             } else {
                 save_as = true;
             }
@@ -371,27 +369,10 @@ impl AppAction {
         #[cfg(not(target_arch = "wasm32"))]
         if save_as {
             if let Some(path) = crate::file_dialog::save_project_dialog(parent) {
-                use crate::save_load;
-
-                save_load::save_file(path, registory, state, state_filepath)?;
+                crate::save_load::save_file(path, registory, state, state_filepath)?;
             }
         }
 
-        Ok(())
-    }
-
-    #[cfg(not(target_arch = "wasm32"))]
-    fn open_file(
-        path: PathBuf,
-        registory: &mut FileRegistory,
-        state: &mut State,
-        state_filepath: &mut Option<PathBuf>,
-    ) -> anyhow::Result<()> {
-        use std::fs::File;
-
-        *state = serde_json::from_reader(File::open(&path)?)?;
-        registory.assign_ids(state);
-        *state_filepath = Some(path);
         Ok(())
     }
 

@@ -14,10 +14,6 @@ fn filter_project(dialog: FileDialog) -> FileDialog {
     dialog.add_filter("SW VVVF Project", &["swvf"])
 }
 
-fn filter_json(dialog: FileDialog) -> FileDialog {
-    dialog.add_filter("JSON File", &["json"])
-}
-
 fn filter_ogg(dialog: FileDialog) -> FileDialog {
     dialog.add_filter("Ogg Vorbis File", &["ogg"])
 }
@@ -28,10 +24,10 @@ pub fn save_project_dialog<W: HasWindowHandle + HasDisplayHandle>(
     filter_project(dialog_with_parent(parent)).save_file()
 }
 
-pub fn open_json_dialog<W: HasWindowHandle + HasDisplayHandle>(
+pub fn open_project_dialog<W: HasWindowHandle + HasDisplayHandle>(
     parent: Option<&W>,
 ) -> Option<PathBuf> {
-    filter_json(dialog_with_parent(parent)).pick_file()
+    filter_project(dialog_with_parent(parent)).pick_file()
 }
 
 pub fn add_ogg_dialog<W: HasWindowHandle + HasDisplayHandle>(

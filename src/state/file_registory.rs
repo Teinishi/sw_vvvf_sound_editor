@@ -18,14 +18,47 @@ pub type AudioEntryId = u32;
 #[derive(Default)]
 pub struct FileRegistory {
     raw_data: HashMap<AudioEntryId, Vec<u8>>,
-    audio_sources: Arc<Mutex<HashMap<AudioEntryId, anyhow::Result<ResampledLoopAudio>>>>,
+    pub audio_sources: Arc<Mutex<HashMap<AudioEntryId, anyhow::Result<ResampledLoopAudio>>>>,
     next_id: AudioEntryId,
     audio_output: AudioOutput,
 }
 
 impl FileRegistory {
+    pub fn patch_keep_output(&mut self, mut other: Self) {
+        self.raw_data = std::mem::take(&mut other.raw_data);
+        let mut a = self
+            .audio_sources
+            .lock()
+            .expect("Failed to lock audio_sources in self");
+        let mut b = other
+            .audio_sources
+            .lock()
+            .expect("Failed to lock audio_sources in other");
+        *a = std::mem::take(&mut b);
+        self.next_id = other.next_id;
+    }
+
     pub fn raw_data_by_id(&self, id: &AudioEntryId) -> Option<&Vec<u8>> {
         self.raw_data.get(id)
+    }
+
+    pub fn add_buffered_file(
+        &mut self,
+        buf: Vec<u8>,
+        name: &str,
+        state: &mut State,
+    ) -> anyhow::Result<AudioEntryId> {
+        // バイト列からファイルを追加
+        let id = self.generate_id();
+        let result = self.read_buffer(&buf)?;
+        if let Ok(mut sources) = self.audio_sources.lock() {
+            self.raw_data.insert(id, buf);
+            sources.insert(id, result);
+            state.add_audio_entry(id, name);
+            Ok(id)
+        } else {
+            bail!("Failed to get access to mutex audio_sources");
+        }
     }
 
     pub fn add_file(&mut self, path: PathBuf, state: &mut State) -> anyhow::Result<AudioEntryId> {
@@ -91,12 +124,6 @@ impl FileRegistory {
         })
     }
 
-    pub fn assign_ids(&mut self, state: &mut State) {
-        for entry in &mut state.audio_entries {
-            entry.id = self.generate_id();
-        }
-    }
-
     pub fn update(
         &mut self,
         state: &mut State,
@@ -151,11 +178,16 @@ impl FileRegistory {
         &self,
         path: &PathBuf,
     ) -> anyhow::Result<(Vec<u8>, anyhow::Result<ResampledLoopAudio>)> {
-        let config = self.audio_output.config()?;
         let raw = std::fs::read(path)?;
-        let mut ogg = OggStreamReader::new(std::io::Cursor::new(&raw))?;
+        let result = self.read_buffer(&raw)?;
+        Ok((raw, result))
+    }
+
+    fn read_buffer(&self, buf: &[u8]) -> anyhow::Result<anyhow::Result<ResampledLoopAudio>> {
+        let config = self.audio_output.config()?;
+        let mut ogg = OggStreamReader::new(std::io::Cursor::new(buf))?;
         let source = AudioSource::from_ogg(&mut ogg, config.channels() as usize)?;
         let result = ResampledLoopAudio::new(source, config.sample_rate().0, 256);
-        Ok((raw, result))
+        Ok(result)
     }
 }
