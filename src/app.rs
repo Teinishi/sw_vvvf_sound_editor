@@ -219,7 +219,10 @@ impl eframe::App for MainApp {
             &mut self.action,
         );
 
-        // action を実行、エラーをモーダルで表示
+        // モーダル表示
+        self.action.show_modal(ctx);
+
+        // action を実行
         self.action.shortcut(ctx);
         self.action.exec(
             ctx,
@@ -229,7 +232,6 @@ impl eframe::App for MainApp {
             &mut self.undoer,
             &mut self.state_file,
         );
-        self.action.show_modal(ctx);
 
         // undoer 更新
         self.undoer.feed_state(ctx.input(|i| i.time), &self.state);
