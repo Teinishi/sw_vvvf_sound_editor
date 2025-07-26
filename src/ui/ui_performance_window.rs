@@ -1,6 +1,6 @@
 use super::{PlotAutoColor, UiPlotEdit};
 use crate::{
-    app::AppAction,
+    app_action::AppAction,
     state::TrainPerformance,
     ui::{UiFunctionEdit, ui_plot_edit::PlotEditEntry},
 };

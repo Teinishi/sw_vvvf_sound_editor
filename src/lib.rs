@@ -1,6 +1,7 @@
 #![warn(clippy::all, rust_2018_idioms)]
 
 mod app;
+mod app_action;
 mod audio_player;
 #[cfg(not(target_arch = "wasm32"))]
 mod file_dialog;

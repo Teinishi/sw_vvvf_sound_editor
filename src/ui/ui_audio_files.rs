@@ -1,5 +1,5 @@
 use crate::{
-    app::AppAction,
+    app_action::AppAction,
     state::{AudioEntry, FileRegistory, State},
 };
 use egui::{Button, Id, Label, ScrollArea};
@@ -19,9 +19,7 @@ impl UiAudioFiles {
         action: &mut AppAction,
         registory: &mut FileRegistory,
         state: &mut State,
-    ) -> Vec<anyhow::Error> {
-        let mut errors = Vec::new();
-
+    ) {
         let mut dnd_from_to: Option<(DndLocation, DndLocation)> = None;
 
         ui.strong(Self::TITLE);
@@ -40,7 +38,7 @@ impl UiAudioFiles {
                         if let Some(paths) = crate::file_dialog::add_ogg_dialog(frame) {
                             for path in paths {
                                 if let Err(err) = registory.add_file(path, state) {
-                                    errors.push(err);
+                                    action.add_error_modal(err);
                                 }
                             }
                         }
@@ -97,15 +95,13 @@ impl UiAudioFiles {
                 DndLocation::Discard => {
                     if let Some(id) = state.audio_entries.get(from_idx).map(|e| *e.id()) {
                         if let Err(err) = registory.remove_file(&id, state) {
-                            errors.push(err);
+                            action.add_error_modal(err);
                         }
                     }
                 }
             }
             action.add_undo();
         }
-
-        errors
     }
 }
 

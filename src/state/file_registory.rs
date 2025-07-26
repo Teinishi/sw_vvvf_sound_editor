@@ -129,10 +129,10 @@ impl FileRegistory {
         state: &mut State,
         player_state: &PlayerState,
         preference: &Preference,
-    ) -> Vec<anyhow::Error> {
+        action: &mut crate::app_action::AppAction,
+    ) {
         let mut to_load = vec![];
         let mut indices_to_remove = vec![];
-        let mut errors = vec![];
 
         if let Ok(mut sources) = self.audio_sources.lock() {
             for (index, entry) in state.audio_entries.iter().enumerate() {
@@ -145,7 +145,10 @@ impl FileRegistory {
                     if let Some(path) = entry.path.as_ref() {
                         to_load.push((index, path.clone()));
                     } else {
-                        errors.push(anyhow!("Unable to get audio data of {}", entry.name()));
+                        action.add_error_modal(anyhow!(
+                            "Unable to get audio data of {}",
+                            entry.name()
+                        ));
                         indices_to_remove.push(index);
                     }
                 }
@@ -161,11 +164,10 @@ impl FileRegistory {
         for (index, path) in to_load {
             if let Some(entry) = state.audio_entries.get_mut(index) {
                 if let Err(err) = self.add_existing(&path, entry) {
-                    errors.push(err);
+                    action.add_error_modal(err);
                 }
             }
         }
-        errors
     }
 
     fn generate_id(&mut self) -> AudioEntryId {

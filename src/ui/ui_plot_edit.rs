@@ -1,5 +1,5 @@
 use crate::{
-    app::AppAction,
+    app_action::AppAction,
     func_edit::FuncEdit,
     state::{AudioEntry, AudioEntryId, SelectionCursor},
     ui::PlotAutoColor,

@@ -1,6 +1,9 @@
 use super::{UiPlotEdit, aixs_hint_formatter_percentage};
 use crate::{
-    app::AppAction, player_state::PlayerState, state::{AudioEntryId, State}, ui::ui_plot_edit::PlotEditEntry,
+    app_action::AppAction,
+    player_state::PlayerState,
+    state::{AudioEntryId, State},
+    ui::ui_plot_edit::PlotEditEntry,
 };
 use egui::{Color32, Sides};
 use egui_plot::{AxisHints, Plot, VLine};

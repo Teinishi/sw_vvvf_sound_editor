@@ -1,6 +1,5 @@
-use std::{collections::VecDeque, path::PathBuf};
-
 use crate::{
+    app_action::AppAction,
     audio_player::AudioOutput,
     player_state::PlayerState,
     preference::Preference,
@@ -11,9 +10,9 @@ use crate::{
     },
 };
 use egui::{
-    CentralPanel, Frame, Id, Key, KeyboardShortcut, Modal, Modifiers, ScrollArea, SidePanel, Sides,
-    TopBottomPanel, util::undoer::Undoer, vec2,
+    CentralPanel, Frame, ScrollArea, SidePanel, TopBottomPanel, util::undoer::Undoer, vec2,
 };
+use std::path::PathBuf;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct MainApp {
@@ -42,9 +41,7 @@ pub struct MainApp {
     #[serde(skip)]
     ui_setting_window: UiSettingWindow,
     #[serde(skip)]
-    error_modals: VecDeque<(u32, anyhow::Error)>,
-    #[serde(skip)]
-    next_modal_id: u32,
+    action: AppAction,
 }
 
 impl Default for MainApp {
@@ -67,8 +64,7 @@ impl Default for MainApp {
             ui_player: UiPlayer,
             ui_performance_window: UiPerformanceWindow::default(),
             ui_setting_window: UiSettingWindow,
-            error_modals: VecDeque::new(),
-            next_modal_id: 0,
+            action: AppAction::default(),
         }
     }
 }
@@ -116,14 +112,10 @@ impl MainApp {
             .expect("Failed to play audio.");
     }
 
-    fn add_error_modal(&mut self, err: anyhow::Error) {
-        self.error_modals.push_back((self.next_modal_id, err));
-        self.next_modal_id += 1;
-    }
-
-    fn ui(&mut self, ctx: &egui::Context, frame: &eframe::Frame, action: &mut AppAction) {
+    fn ui(&mut self, ctx: &egui::Context, frame: &eframe::Frame) {
         TopBottomPanel::top("top_panel").show(ctx, |ui| {
-            self.ui_menu_bar.ui(ui, action, self.state_file.is_some());
+            self.ui_menu_bar
+                .ui(ui, &mut self.action, self.state_file.is_some());
         });
 
         /*if let Some(path) = &self.work_folder {
@@ -144,16 +136,13 @@ impl MainApp {
                 .resizable(true)
                 .show(ctx, |ui| {
                     ui.style_mut().spacing.item_spacing = vec2(8.0, 8.0);
-                    let errors = self.ui_audio_files.ui(
+                    self.ui_audio_files.ui(
                         ui,
                         Some(frame),
-                        action,
+                        &mut self.action,
                         &mut self.registory,
                         &mut self.state,
                     );
-                    for err in errors {
-                        self.add_error_modal(err);
-                    }
                 });
         }
 
@@ -168,7 +157,7 @@ impl MainApp {
                         ui.style_mut().spacing.item_spacing = vec2(8.0, 8.0);
                         self.ui_point_edit.ui(
                             ui,
-                            action,
+                            &mut self.action,
                             &mut self.state.audio_entries,
                             &mut self.state.selection,
                         );
@@ -187,15 +176,19 @@ impl MainApp {
             .frame(Frame::central_panel(&ctx.style()).inner_margin(8.0))
             .show(ctx, |ui| {
                 ui.style_mut().spacing.item_spacing = vec2(8.0, 8.0);
-                self.ui_pitch_volume_plots
-                    .ui(ui, action, &mut self.state, &self.player_state);
+                self.ui_pitch_volume_plots.ui(
+                    ui,
+                    &mut self.action,
+                    &mut self.state,
+                    &self.player_state,
+                );
             });
 
         // ウィンドウ
         self.ui_performance_window.show(
             ctx,
             &mut self.ui_menu_bar.show_performance_window,
-            action,
+            &mut self.action,
             &mut self.state.train_performance,
         );
         self.ui_setting_window.show(
@@ -212,207 +205,33 @@ impl eframe::App for MainApp {
     }
 
     fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-        let mut action = AppAction::new(&self.undoer, &self.state);
+        self.action.new_frame(&self.undoer, &self.state);
 
-        self.ui(ctx, frame, &mut action);
+        self.ui(ctx, frame);
 
         // 毎フレームの更新処理
         self.state.train_performance.update();
         self.player_state.update(ctx, &self.state, &self.preference);
-        let errors = self
-            .registory
-            .update(&mut self.state, &self.player_state, &self.preference);
-        for err in errors {
-            self.add_error_modal(err);
-        }
+        self.registory.update(
+            &mut self.state,
+            &self.player_state,
+            &self.preference,
+            &mut self.action,
+        );
 
         // action を実行、エラーをモーダルで表示
-        action.shortcut(ctx);
-        if let Err(err) = action.exec(
+        self.action.shortcut(ctx);
+        self.action.exec(
             ctx,
             Some(frame),
             &mut self.registory,
             &mut self.state,
             &mut self.undoer,
             &mut self.state_file,
-        ) {
-            self.add_error_modal(err);
-        }
-        if let Some((id, err)) = self.error_modals.front() {
-            let modal = Modal::new(Id::new(format!("modal_{id}"))).show(ctx, |ui| {
-                ui.heading("\u{26a0} Error");
-                ui.add_space(8.0);
-                ui.label(format!("{err:?}"));
-                ui.add_space(8.0);
-                Sides::new()
-                    .show(ui, |_| {}, |ui| ui.button("Close").clicked())
-                    .1
-            });
-            if modal.should_close() || modal.inner {
-                self.error_modals.pop_front();
-            }
-        }
+        );
+        self.action.show_modal(ctx);
 
         // undoer 更新
         self.undoer.feed_state(ctx.input(|i| i.time), &self.state);
-    }
-}
-
-#[derive(Debug, Default, Clone)]
-pub struct AppAction {
-    has_undo: bool,
-    has_redo: bool,
-
-    new_project: bool,
-    open: bool,
-    save: bool,
-    save_as: bool,
-    quit: bool,
-    add_undo: bool,
-    undo: bool,
-    redo: bool,
-}
-
-impl AppAction {
-    fn new<T: Clone + PartialEq>(undoer: &Undoer<T>, state: &T) -> Self {
-        Self {
-            has_undo: undoer.has_undo(state),
-            has_redo: undoer.has_redo(state),
-            ..Default::default()
-        }
-    }
-
-    fn shortcut(&mut self, ctx: &egui::Context) {
-        let (ctrl_n, ctrl_o, ctrl_s, ctrl_shfit_s) = ctx.input_mut(|i| {
-            (
-                i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::N)),
-                i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::O)),
-                i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::S)),
-                i.consume_shortcut(&KeyboardShortcut::new(
-                    Modifiers::COMMAND.plus(Modifiers::SHIFT),
-                    Key::S,
-                )),
-            )
-        });
-        if ctrl_n {
-            self.new_project();
-        }
-        if ctrl_o {
-            self.open();
-        }
-        if ctrl_s {
-            self.save();
-        }
-        if ctrl_shfit_s {
-            self.save_as();
-        }
-    }
-
-    fn exec<W>(
-        &self,
-        ctx: &egui::Context,
-        parent: Option<&W>,
-        registory: &mut FileRegistory,
-        state: &mut State,
-        undoer: &mut Undoer<State>,
-        state_filepath: &mut Option<PathBuf>,
-    ) -> anyhow::Result<()>
-    where
-        W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle,
-    {
-        // エラーにならないものを先にやっておく
-        if self.quit {
-            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-        }
-        if self.add_undo {
-            undoer.add_undo(state);
-        }
-        if self.undo
-            || ctx.input_mut(|i| {
-                i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Z))
-            })
-        {
-            if let Some(s) = undoer.undo(state) {
-                *state = s.clone();
-            }
-        }
-        if self.redo
-            || ctx.input_mut(|i| {
-                i.consume_shortcut(&KeyboardShortcut::new(Modifiers::COMMAND, Key::Y))
-            })
-        {
-            if let Some(s) = undoer.redo(state) {
-                *state = s.clone();
-            }
-        }
-        if self.new_project {
-            // todo: 確認ダイアログ
-            *state = State::default();
-        }
-
-        // エラーになりうるもの
-        #[cfg(not(target_arch = "wasm32"))]
-        if self.open {
-            if let Some(path) = crate::file_dialog::open_project_dialog(parent) {
-                crate::save_load::open_file(path, registory, state, state_filepath)?;
-            }
-        }
-        let mut save_as = self.save_as;
-        #[cfg(not(target_arch = "wasm32"))]
-        if self.save {
-            if let Some(path) = &state_filepath {
-                crate::save_load::save_file(path.clone(), registory, state, state_filepath)?;
-            } else {
-                save_as = true;
-            }
-        }
-        #[cfg(not(target_arch = "wasm32"))]
-        if save_as {
-            if let Some(path) = crate::file_dialog::save_project_dialog(parent) {
-                crate::save_load::save_file(path, registory, state, state_filepath)?;
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn has_undo(&self) -> bool {
-        self.has_undo
-    }
-
-    pub fn has_redo(&self) -> bool {
-        self.has_redo
-    }
-
-    pub fn new_project(&mut self) {
-        self.new_project = true;
-    }
-
-    pub fn open(&mut self) {
-        self.open = true;
-    }
-
-    pub fn save(&mut self) {
-        self.save = true;
-    }
-
-    pub fn save_as(&mut self) {
-        self.save_as = true;
-    }
-
-    pub fn quit(&mut self) {
-        self.quit = true;
-    }
-
-    pub fn add_undo(&mut self) {
-        self.add_undo = true;
-    }
-
-    pub fn undo(&mut self) {
-        self.undo = true;
-    }
-
-    pub fn redo(&mut self) {
-        self.redo = true;
     }
 }
