@@ -34,13 +34,15 @@ impl<'a> UiFunctionEdit<'a> {
             ui.horizontal(|ui| {
                 let mode = func.mode_mut();
 
-                ui.label(self.title);
-                ComboBox::new("ui_function_edit_mode", "")
-                    .selected_text(format!("{mode:?}"))
-                    .show_ui(ui, |ui| {
-                        ui.selectable_value(mode, EditableFuncMode::Points, "Points");
-                        ui.selectable_value(mode, EditableFuncMode::Expression, "Expression");
-                    });
+                ui.columns(2, |uis| {
+                    uis[0].strong(self.title);
+                    ComboBox::new("ui_function_edit_mode", "")
+                        .selected_text(format!("{mode:?}"))
+                        .show_ui(&mut uis[1], |ui| {
+                            ui.selectable_value(mode, EditableFuncMode::Points, "Points");
+                            ui.selectable_value(mode, EditableFuncMode::Expression, "Expression");
+                        });
+                });
             });
 
             match func.mode() {

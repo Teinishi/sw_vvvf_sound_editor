@@ -127,7 +127,11 @@ impl UiPitchVolumePlots {
         self.ui_pitch_plot.ui(
             ui,
             action,
-            &mut PlotEditEntry::pitch(&mut state.audio_entries, &state.selection),
+            &mut PlotEditEntry::pitch(
+                &mut state.audio_entries,
+                &state.selection,
+                player_state.sound_type,
+            ),
             &mut state.selection,
             &mut None,
             || {
@@ -158,7 +162,7 @@ impl UiPitchVolumePlots {
         self.ui_volume_plot.ui(
             ui,
             action,
-            &mut PlotEditEntry::volume(&mut state.audio_entries),
+            &mut PlotEditEntry::volume(&mut state.audio_entries, player_state.sound_type),
             &mut state.selection,
             &mut None,
             || {

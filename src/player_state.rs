@@ -1,7 +1,7 @@
 use crate::{
     func_edit::FuncEdit as _,
     preference::Preference,
-    state::{AudioEntry, State, TrainPerformance},
+    state::{AudioEntry, SoundType, State, TrainPerformance},
 };
 use egui::{Context, Key, Modifiers};
 use std::time::Instant;
@@ -9,6 +9,7 @@ use std::time::Instant;
 pub struct PlayerState {
     pub master_controller: i32,
     pub speed: f64,
+    pub sound_type: SoundType,
     smoothed_acceleration: f64,
     last_frame_time: Option<Instant>,
 }
@@ -35,6 +36,7 @@ impl Default for PlayerState {
         Self {
             master_controller: i32::MIN,
             speed: 0.0,
+            sound_type: SoundType::Accel,
             smoothed_acceleration: 0.0,
             last_frame_time: None,
         }
@@ -47,16 +49,25 @@ impl PlayerState {
             -(train_performance.brake_steps as i32),
             train_performance.power_steps as i32,
         );
+        match self.master_controller.cmp(&0) {
+            std::cmp::Ordering::Greater => self.sound_type = SoundType::Accel,
+            std::cmp::Ordering::Less => self.sound_type = SoundType::Brake,
+            std::cmp::Ordering::Equal => {}
+        }
     }
 
     pub fn get_volume_pitch(&self, entry: &AudioEntry, preference: &Preference) -> (f32, f32) {
-        let volume = if self.master_controller != 0 && self.speed > 1e-6 {
-            entry.volume().value_at(self.speed)
+        if let Some(funcs) = entry.funcs_by_type(self.sound_type) {
+            let volume = if self.master_controller != 0 && self.speed > 1e-6 {
+                funcs.volume.value_at(self.speed)
+            } else {
+                0.0
+            };
+            let pitch = funcs.pitch.value_at(self.speed);
+            (preference.global_volume * volume as f32, pitch as f32)
         } else {
-            0.0
-        };
-        let pitch = entry.pitch().value_at(self.speed);
-        (preference.global_volume * volume as f32, pitch as f32)
+            (0.0, 1.0)
+        }
     }
 
     pub fn update(&mut self, ctx: &Context, state: &State, _preference: &Preference) {

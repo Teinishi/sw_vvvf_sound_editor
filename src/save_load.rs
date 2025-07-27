@@ -1,6 +1,5 @@
-use crate::{
-    func_edit::{EditablePositiveFunc, EditableZeroOneFunc},
-    state::{AudioEntry, AudioEntryId, FileRegistory, State, TrainPerformance},
+use crate::state::{
+    AudioEntry, AudioEntryId, AudioFunctionMode, FileRegistory, State, TrainPerformance,
 };
 use anyhow::bail;
 use std::{
@@ -31,8 +30,7 @@ struct SerializeAudioEntry<'a> {
     id: AudioEntryId,
     audio: String,
     name: &'a str,
-    volume_function: &'a EditableZeroOneFunc,
-    pitch_function: &'a EditablePositiveFunc,
+    mode: &'a AudioFunctionMode,
 }
 
 impl<'a> From<&'a AudioEntry> for SerializeAudioEntry<'a> {
@@ -42,8 +40,7 @@ impl<'a> From<&'a AudioEntry> for SerializeAudioEntry<'a> {
             id,
             audio: format!("{id}.ogg"),
             name: value.name(),
-            volume_function: value.volume(),
-            pitch_function: value.pitch(),
+            mode: value.mode(),
         }
     }
 }
@@ -58,8 +55,7 @@ struct DeserializeState {
 struct DeserializeAudioEntry {
     audio: String,
     name: String,
-    volume_function: EditableZeroOneFunc,
-    pitch_function: EditablePositiveFunc,
+    mode: AudioFunctionMode,
 }
 
 pub fn save_file(
@@ -126,10 +122,10 @@ pub fn open_file(
         let mut buf = Vec::new();
         zip.by_name(&entry.audio)?.read_to_end(&mut buf)?;
         let id = new_registory.add_buffered_file(buf, &entry.name, &mut new_state)?;
-        if let Some(new_entry) = new_state.get_audio_entry_mut(&id) {
-            *new_entry.volume_mut() = entry.volume_function.clone();
-            *new_entry.pitch_mut() = entry.pitch_function.clone();
-        }
+        let new_entry = new_state
+            .get_audio_entry_mut(&id)
+            .expect("Unexpected error on loading file");
+        *new_entry.mode_mut() = entry.mode.clone();
     }
 
     registory.patch_keep_output(new_registory);

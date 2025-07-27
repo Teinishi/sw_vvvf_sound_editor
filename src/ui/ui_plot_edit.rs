@@ -1,7 +1,7 @@
 use crate::{
     app_action::AppAction,
     func_edit::FuncEdit,
-    state::{AudioEntry, AudioEntryId, SelectionCursor},
+    state::{AudioEntry, AudioEntryId, SelectionCursor, SoundType},
     ui::PlotAutoColor,
 };
 use egui::{Color32, Id, Modifiers, Pos2, Rangef, Response, Stroke};
@@ -37,44 +37,53 @@ impl<'a> PlotEditEntry<'a, AudioEntryId> {
     pub fn pitch(
         audio_entries: &'a mut [AudioEntry],
         selection: &Option<AudioEntryId>,
+        sound_type: SoundType,
     ) -> Vec<Self> {
         audio_entries
             .iter_mut()
             .enumerate()
-            .map(|(i, e)| {
+            .filter_map(|(i, e)| {
                 let id = *e.id();
                 let is_selected = selection.as_ref() == Some(&id);
                 let color = PlotAutoColor::get_color(i);
-                let volume_fn = e.volume().clone();
-                let gradient_color = move |p: PlotPoint| {
-                    // 音量依存で濃さを変更
-                    let v = volume_fn.value_at(p.x) as f32;
-                    let f = 0.1 + 0.9 * v;
-                    color.linear_multiply(f)
-                };
-                Self {
-                    func: e.pitch_mut(),
-                    color,
-                    name: format!("Pitch {i}"),
-                    id,
-                    gradient_color: (!is_selected).then_some(Arc::new(gradient_color)),
+                if let Some(funcs) = e.funcs_by_type_mut(sound_type) {
+                    let volume_fn = funcs.volume.clone();
+                    let gradient_color = move |p: PlotPoint| {
+                        // 音量依存で濃さを変更
+                        let v = volume_fn.value_at(p.x) as f32;
+                        let f = 0.1 + 0.9 * v;
+                        color.linear_multiply(f)
+                    };
+                    Some(Self {
+                        func: &mut funcs.pitch,
+                        color,
+                        name: format!("Pitch {i}"),
+                        id,
+                        gradient_color: (!is_selected).then_some(Arc::new(gradient_color)),
+                    })
+                } else {
+                    None
                 }
             })
             .collect()
     }
 
-    pub fn volume(audio_entries: &'a mut [AudioEntry]) -> Vec<Self> {
+    pub fn volume(audio_entries: &'a mut [AudioEntry], sound_type: SoundType) -> Vec<Self> {
         audio_entries
             .iter_mut()
             .enumerate()
-            .map(|(i, e)| {
+            .filter_map(|(i, e)| {
                 let id = *e.id();
-                Self {
-                    func: e.volume_mut(),
-                    color: PlotAutoColor::get_color(i),
-                    name: format!("Volume {i}"),
-                    id,
-                    gradient_color: None,
+                if let Some(funcs) = e.funcs_by_type_mut(sound_type) {
+                    Some(Self {
+                        func: &mut funcs.volume,
+                        color: PlotAutoColor::get_color(i),
+                        name: format!("Volume {i}"),
+                        id,
+                        gradient_color: None,
+                    })
+                } else {
+                    None
                 }
             })
             .collect()

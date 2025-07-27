@@ -1,9 +1,9 @@
 use crate::{
     app_action::AppAction,
-    state::{AudioEntry, AudioEntryId},
+    state::{AudioEntry, AudioEntryId, AudioFunctionMode, AudioFunctions},
     ui::{PlotAutoColor, UiFunctionEdit},
 };
-use egui::{Button, Label, vec2};
+use egui::{Button, ComboBox, Label, vec2};
 
 #[derive(Debug, Default)]
 pub struct UiPitchVolumeEdit;
@@ -28,17 +28,58 @@ impl UiPitchVolumeEdit {
             .as_ref()
             .and_then(|id| entries.iter_mut().find(|e| e.id() == id))
         {
-            UiFunctionEdit::new("Pitch", ("Speed", "Pitch")).ui(
-                ui,
-                ui.id().with("pitch"),
-                entry.pitch_mut(),
-            );
+            ComboBox::from_label("Mode")
+                .selected_text(entry.mode().label_text())
+                .show_ui(ui, |ui| {
+                    if ui
+                        .selectable_label(entry.mode().is_common(), AudioFunctionMode::TEXT_COMMON)
+                        .clicked()
+                    {
+                        *entry.mode_mut() = entry.mode().to_common();
+                        action.add_undo();
+                    }
+                    if ui
+                        .selectable_label(
+                            entry.mode().is_separate(),
+                            AudioFunctionMode::TEXT_SEPARATE,
+                        )
+                        .clicked()
+                    {
+                        *entry.mode_mut() = entry.mode().to_separate();
+                        action.add_undo();
+                    }
+                    if ui
+                        .selectable_label(
+                            entry.mode().is_accel_only(),
+                            AudioFunctionMode::TEXT_ACCEL_ONLY,
+                        )
+                        .clicked()
+                    {
+                        *entry.mode_mut() = entry.mode().to_accel_only();
+                        action.add_undo();
+                    }
+                    if ui
+                        .selectable_label(
+                            entry.mode().is_brake_only(),
+                            AudioFunctionMode::TEXT_BRAKE_ONLY,
+                        )
+                        .clicked()
+                    {
+                        *entry.mode_mut() = entry.mode().to_brake_only();
+                        action.add_undo();
+                    }
+                });
 
-            ui.separator();
-
-            UiFunctionEdit::new("Volume", ("Speed", "Volume"))
-                .y_percentage(true)
-                .ui(ui, ui.id().with("volume"), entry.volume_mut());
+            if let AudioFunctionMode::Common(funcs) = entry.mode_mut() {
+                Self::ui_funcs(ui, funcs, "");
+            } else {
+                if let Some(funcs) = entry.mode_mut().accel_mut() {
+                    Self::ui_funcs(ui, funcs, "Accel ");
+                }
+                if let Some(funcs) = entry.mode_mut().brake_mut() {
+                    Self::ui_funcs(ui, funcs, "Brake ");
+                }
+            }
         }
     }
 
@@ -83,5 +124,19 @@ impl UiPitchVolumeEdit {
                 }
             });
         }
+    }
+
+    fn ui_funcs(ui: &mut egui::Ui, funcs: &mut AudioFunctions, title_prefix: &str) {
+        let title_pitch = format!("{title_prefix}Pitch");
+        let title_volume = format!("{title_prefix}Volume");
+        UiFunctionEdit::new(&title_pitch, ("Speed", "Pitch")).ui(
+            ui,
+            ui.id().with(&title_pitch),
+            &mut funcs.pitch,
+        );
+        ui.add_space(10.0);
+        UiFunctionEdit::new(&title_volume, ("Speed", "Volume"))
+            .y_percentage(true)
+            .ui(ui, ui.id().with(&title_volume), &mut funcs.volume);
     }
 }
