@@ -1,4 +1,7 @@
-use crate::state::{FileRegistory, State};
+use crate::{
+    app::StateFilePath,
+    state::{FileRegistory, State},
+};
 use egui::{Id, Key, KeyboardShortcut, Modal, Modifiers, Sides, util::undoer::Undoer};
 use std::{collections::VecDeque, path::PathBuf};
 
@@ -49,7 +52,7 @@ impl AppAction {
         registory: &mut FileRegistory,
         state: &mut State,
         undoer: &mut Undoer<State>,
-        state_filepath: &mut Option<PathBuf>,
+        state_filepath: &mut Option<StateFilePath>,
     ) where
         W: raw_window_handle::HasWindowHandle + raw_window_handle::HasDisplayHandle,
     {
@@ -97,22 +100,22 @@ impl AppAction {
         #[cfg(not(target_arch = "wasm32"))]
         if self.flags.open {
             if let Some(path) = crate::file_dialog::open_project_dialog(parent) {
-                if let Err(err) =
-                    crate::save_load::open_file(path, registory, state, state_filepath)
-                {
-                    self.add_error_modal(err);
+                let result = crate::save_load::load_file(&path, registory, state);
+                match result {
+                    Ok(_) => {
+                        *state_filepath = Some(StateFilePath::new(path, state.clone()));
+                    }
+                    Err(err) => {
+                        self.add_error_modal(err);
+                    }
                 }
             }
         }
         let mut save_as = self.flags.save_as;
         #[cfg(not(target_arch = "wasm32"))]
         if self.flags.save {
-            if let Some(path) = &state_filepath {
-                if let Err(err) =
-                    crate::save_load::save_file(path.clone(), registory, state, state_filepath)
-                {
-                    self.add_error_modal(err);
-                }
+            if let Some(StateFilePath { path, .. }) = &state_filepath {
+                self.do_save(path.clone(), registory, state, state_filepath);
             } else {
                 save_as = true;
             }
@@ -120,11 +123,7 @@ impl AppAction {
         #[cfg(not(target_arch = "wasm32"))]
         if save_as {
             if let Some(path) = crate::file_dialog::save_project_dialog(parent) {
-                if let Err(err) =
-                    crate::save_load::save_file(path, registory, state, state_filepath)
-                {
-                    self.add_error_modal(err);
-                }
+                self.do_save(path, registory, state, state_filepath);
             }
         }
 
@@ -181,6 +180,24 @@ impl AppAction {
 
     pub fn show_modal(&mut self, ctx: &egui::Context) {
         self.modals.show(ctx, &mut self.flags);
+    }
+
+    fn do_save(
+        &mut self,
+        path: PathBuf,
+        registory: &FileRegistory,
+        state: &State,
+        state_filepath: &mut Option<StateFilePath>,
+    ) {
+        let result = crate::save_load::save_file(&path, registory, state);
+        match result {
+            Ok(_) => {
+                *state_filepath = Some(StateFilePath::new(path, state.clone()));
+            }
+            Err(err) => {
+                self.add_error_modal(err);
+            }
+        }
     }
 }
 

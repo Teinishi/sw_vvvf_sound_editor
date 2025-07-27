@@ -58,16 +58,11 @@ struct DeserializeAudioEntry {
     mode: AudioFunctionMode,
 }
 
-pub fn save_file(
-    path: PathBuf,
-    registory: &FileRegistory,
-    state: &State,
-    state_filepath: &mut Option<PathBuf>,
-) -> anyhow::Result<()> {
+pub fn save_file(path: &PathBuf, registory: &FileRegistory, state: &State) -> anyhow::Result<()> {
     // jsonとoggをまとめてzipにして保存、拡張子だけswvf
     let saved_state: SerializeState<'_> = state.into();
     let json = serde_json::to_string(&saved_state)?;
-    let file = File::create(&path)?;
+    let file = File::create(path)?;
     let mut zip = ZipWriter::new(file);
     let zip_options = SimpleFileOptions::default();
 
@@ -85,23 +80,21 @@ pub fn save_file(
             zip.start_file(&entry.audio, zip_options)?;
             zip.write_all(bytes)?;
         } else {
-            bail!("Unable to get audio data for {}", entry.name);
+            bail!("Unexpected error on saving file");
         }
     }
 
     zip.finish()?;
 
-    *state_filepath = Some(path);
     Ok(())
 }
 
-pub fn open_file(
-    path: PathBuf,
+pub fn load_file(
+    path: &PathBuf,
     registory: &mut FileRegistory,
     state: &mut State,
-    state_filepath: &mut Option<PathBuf>,
 ) -> anyhow::Result<()> {
-    let file = File::open(&path)?;
+    let file = File::open(path)?;
     let mut zip = ZipArchive::new(file)?;
 
     let mut version = String::new();
@@ -130,7 +123,6 @@ pub fn open_file(
 
     registory.patch_keep_output(new_registory);
     *state = new_state;
-    *state_filepath = Some(path);
 
     Ok(())
 }

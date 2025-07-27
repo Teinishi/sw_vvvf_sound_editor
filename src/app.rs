@@ -23,7 +23,7 @@ pub struct MainApp {
     #[serde(skip)]
     undoer: Undoer<State>,
     state: State,
-    state_file: Option<PathBuf>,
+    state_file_path: Option<StateFilePath>,
     preference: Preference,
     #[serde(skip)]
     player_state: PlayerState,
@@ -54,7 +54,7 @@ impl Default for MainApp {
                 ..Default::default()
             }),
             state: State::default(),
-            state_file: None,
+            state_file_path: None,
             preference: Preference::default(),
             player_state: PlayerState::default(),
             ui_menu_bar: UiMenuBar::default(),
@@ -107,6 +107,13 @@ impl MainApp {
 
     fn init(&mut self) {
         self.player_state.check(&self.state.train_performance);
+        if let Some(path) = self.state_file_path.as_ref().and_then(|p| p.saved_path()) {
+            if let Err(err) =
+                crate::save_load::load_file(path, &mut self.registory, &mut self.state)
+            {
+                self.action.add_error_modal(err);
+            }
+        }
         self.registory
             .play_audio(&mut self.audio_output)
             .expect("Failed to play audio.");
@@ -115,7 +122,7 @@ impl MainApp {
     fn ui(&mut self, ctx: &egui::Context, frame: &eframe::Frame) {
         TopBottomPanel::top("top_panel").show(ctx, |ui| {
             self.ui_menu_bar
-                .ui(ui, &mut self.action, self.state_file.is_some());
+                .ui(ui, &mut self.action, self.state_file_path.is_some());
         });
 
         /*if let Some(path) = &self.work_folder {
@@ -230,10 +237,43 @@ impl eframe::App for MainApp {
             &mut self.registory,
             &mut self.state,
             &mut self.undoer,
-            &mut self.state_file,
+            &mut self.state_file_path,
         );
 
         // undoer 更新
         self.undoer.feed_state(ctx.input(|i| i.time), &self.state);
+        if let Some(p) = &mut self.state_file_path {
+            p.feed_state(&self.state);
+        }
+    }
+}
+
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize)]
+pub struct StateFilePath {
+    pub path: PathBuf,
+    saved_flag: bool,
+    #[serde(skip)]
+    saved_state: State,
+}
+
+impl StateFilePath {
+    pub fn new(path: PathBuf, state: State) -> Self {
+        Self {
+            path,
+            saved_flag: true,
+            saved_state: state,
+        }
+    }
+
+    pub fn saved_path(&self) -> Option<&PathBuf> {
+        if self.saved_flag {
+            Some(&self.path)
+        } else {
+            None
+        }
+    }
+
+    pub fn feed_state(&mut self, state: &State) {
+        self.saved_flag = self.saved_state == *state;
     }
 }
