@@ -187,7 +187,7 @@ impl MainApp {
                     ui,
                     &mut self.action,
                     &mut self.state,
-                    &self.player_state,
+                    &mut self.player_state,
                 );
             });
 

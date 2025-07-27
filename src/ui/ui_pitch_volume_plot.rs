@@ -2,7 +2,7 @@ use super::{UiPlotEdit, aixs_hint_formatter_percentage};
 use crate::{
     app_action::AppAction,
     player_state::PlayerState,
-    state::{AudioEntryId, State},
+    state::{AudioEntryId, SoundType, State},
     ui::ui_plot_edit::PlotEditEntry,
 };
 use egui::{Color32, Sides};
@@ -106,7 +106,7 @@ impl UiPitchVolumePlots {
         ui: &mut egui::Ui,
         action: &mut AppAction,
         state: &mut State,
-        player_state: &PlayerState,
+        player_state: &mut PlayerState,
     ) {
         let height = ui.available_height();
         let speed_line_color = match ui.ctx().theme() {
@@ -118,7 +118,17 @@ impl UiPitchVolumePlots {
 
         Sides::new().show(
             ui,
-            |_| {},
+            |ui| {
+                let mut clicked = ui
+                    .selectable_value(&mut player_state.sound_type, SoundType::Accel, "Accel")
+                    .clicked();
+                clicked |= ui
+                    .selectable_value(&mut player_state.sound_type, SoundType::Brake, "Brake")
+                    .clicked();
+                if clicked {
+                    player_state.master_controller = 0;
+                }
+            },
             |ui| {
                 reset_viewport = ui.button("Reset viewport").clicked();
             },
